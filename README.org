@@ -1,0 +1,15 @@
+#+title: Simple decon demo
+
+Goals are to illustrate:
+
+- [X] basic convolution and deconvolution
+- [X] deconvolution shifts
+- [ ] deconvolution filters
+- [ ] spectral leakage
+- [ ] mitigation with window / tapering functions
+- [ ] mitigation with extrapolation
+
+#+begin_example
+$ uv tool install git+https://github.com/brettviren/decondemo
+$ decondemo --help
+#+end_example

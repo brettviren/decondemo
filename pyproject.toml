@@ -7,7 +7,16 @@ dependencies = [
     "numpy",
     "matplotlib",
     "click",
+    "pyqt6>=6.7.1",
 ]
+authors = [
+    { name = "Brett Viren", email = "brett.viren@gmail.com" }
+]
+readme = {file = "README.org", content-type = "text/org"}
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
 
 [project.scripts]
 decondemo = "decondemo.__main__:cli"

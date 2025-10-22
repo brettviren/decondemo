@@ -5,7 +5,8 @@ from . import signals
 from . import decon
 from . import plots
 
-@click.group()
+@click.group(context_settings=dict(show_default = True,
+                                   help_option_names=['-h', '--help']))
 def cli():
     """
     Deconvolution Demo Package CLI
@@ -21,11 +22,12 @@ def cli():
 @click.option('--kernel-sigma', type=float, default=2.0, help='Sigma (width) of the kernel Gaussian.')
 @click.option('--window', type=click.Choice(['none', 'hann', 'hamming', 'blackman']), default='none', help='Window function to apply for tapering before padding.')
 @click.option('--taper-length', type=int, default=10, help='Length of the window taper applied to the ends of the signal/kernel.')
+@click.option('--signal-is-measure', default=False, is_flag=True, 
+              help='The generated signal is interpreted as the measure instead of forming measure via convolution of signal with kernel')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, output):
+def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, output):
     """
-    Generates a Gaussian signal and kernel, convolves them to create a measured signal, 
-    performs deconvolution, and plots the results.
+    Perform both convolution and deconvolution of a Gaussian true signal and a Gaussian kernel. 
     """
     
     # 1. Generate True Signal and Kernel
@@ -39,7 +41,10 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     # 2. Calculate Measured Signal (Convolution)
     # The measured signal is the convolution of the true signal and the kernel.
     # We use 'full' mode convolution, which results in an array of size N = len(signal_true) + len(kernel) - 1.
-    signal_measured = np.convolve(signal_true, kernel, mode='full')
+    if signal_is_measure:
+        signal_measured = signal_true
+    else:
+        signal_measured = np.convolve(signal_true, kernel, mode='full')
     
     # 3. Determine Padding Function
     if window == 'none':
@@ -56,7 +61,6 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
         window_info = f"Blackman (Taper Length: {taper_length})"
     
     # 4. Perform Deconvolution using custom padding
-    # decon_pad(signal_measured, kernel, pad_func) attempts to recover signal_true
     try:
         decon_result = decon.decon_pad(signal_measured, kernel, pad_func)
     except ValueError as e:
@@ -73,7 +77,10 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
 
     # 5. Plot Results
     # We plot signal_true, kernel, and decon_result for comparison.
-    plots.plot3(signal_true, kernel, decon_result, output_path=output)
+    if signal_is_measure:
+        plots.plot3(signal_true, kernel, decon_result, output_path=output)
+    else:
+        plots.plot4(signal_true, kernel, signal_measured, decon_result, output_path=output)
 
 if __name__ == '__main__':
     cli()
