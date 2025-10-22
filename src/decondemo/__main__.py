@@ -19,8 +19,10 @@ def cli():
 @click.option('--kernel-size', type=int, default=21, help='Size of the kernel array.')
 @click.option('--kernel-mean', type=float, default=10.0, help='Mean position of the kernel Gaussian.')
 @click.option('--kernel-sigma', type=float, default=2.0, help='Sigma (width) of the kernel Gaussian.')
+@click.option('--window', type=click.Choice(['none', 'hann', 'hamming', 'blackman']), default='none', help='Window function to apply for tapering before padding.')
+@click.option('--taper-length', type=int, default=10, help='Length of the window taper applied to the ends of the signal/kernel.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, output):
+def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, output):
     """
     Generates a Gaussian signal and kernel, convolves them to create a measured signal, 
     performs deconvolution, and plots the results.
@@ -39,18 +41,37 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     # We use 'full' mode convolution, which results in an array of size N = len(signal_true) + len(kernel) - 1.
     signal_measured = np.convolve(signal_true, kernel, mode='full')
     
-    # 3. Perform Deconvolution
-    # decon(signal_measured, kernel) attempts to recover signal_true
-    decon_result = decon.decon(signal_measured, kernel)
+    # 3. Determine Padding Function
+    if window == 'none':
+        pad_func = decon.zero_pad
+        window_info = "None (Zero Padding)"
+    elif window == 'hann':
+        pad_func = decon.Hann(taper_length)
+        window_info = f"Hann (Taper Length: {taper_length})"
+    elif window == 'hamming':
+        pad_func = decon.Hamming(taper_length)
+        window_info = f"Hamming (Taper Length: {taper_length})"
+    elif window == 'blackman':
+        pad_func = decon.Blackman(taper_length)
+        window_info = f"Blackman (Taper Length: {taper_length})"
     
+    # 4. Perform Deconvolution using custom padding
+    # decon_pad(signal_measured, kernel, pad_func) attempts to recover signal_true
+    try:
+        decon_result = decon.decon_pad(signal_measured, kernel, pad_func)
+    except ValueError as e:
+        click.echo(f"Error during deconvolution: {e}", err=True)
+        return
+
     click.echo(f"--- Parameters ---")
     click.echo(f"True Signal Size: {len(signal_true)}")
     click.echo(f"Kernel Size: {len(kernel)}")
     click.echo(f"Measured Signal Size (N): {len(signal_measured)}")
     click.echo(f"Deconvolved Result Size: {len(decon_result)}")
+    click.echo(f"Windowing Used: {window_info}")
     click.echo(f"------------------")
 
-    # 4. Plot Results
+    # 5. Plot Results
     # We plot signal_true, kernel, and decon_result for comparison.
     plots.plot3(signal_true, kernel, decon_result, output_path=output)
 
