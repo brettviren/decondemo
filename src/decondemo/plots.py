@@ -18,11 +18,11 @@ def plot3(signal: Sequence[float], kernel: Sequence[float], decon: Sequence[floa
     kernel = np.asarray(kernel)
     decon = np.asarray(decon)
 
-    fig, axes = plt.subplots(3, 1, sharex=False, figsize=(10, 8))
+    fig, axes = plt.subplots(3, 1, sharex=True, figsize=(10, 8))
     
     # Plot 1: Signal (True)
     axes[0].step(np.arange(len(signal)), signal, where='mid', label='True Signal')
-    axes[0].set_title('1. True Signal (Input to Blurring)')
+    axes[0].set_title('1. True Signal')
     axes[0].grid(True)
     
     # Plot 2: Kernel
