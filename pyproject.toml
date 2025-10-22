@@ -1,18 +1,13 @@
 [project]
 name = "decondemo"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-authors = [
-    { name = "Brett Viren", email = "brett.viren@gmail.com" }
-]
-requires-python = ">=3.12"
+description = "A demo package for DFT signal deconvolution."
+requires-python = ">=3.8"
 dependencies = [
-    "click>=8.3.0",
-    "matplotlib>=3.10.7",
-    "numpy>=2.3.4",
+    "numpy",
+    "matplotlib",
+    "click",
 ]
 
-[build-system]
-requires = ["setuptools>=61"]
-build-backend = "setuptools.build_meta"
+[project.scripts]
+decondemo = "decondemo.__main__:cli"
