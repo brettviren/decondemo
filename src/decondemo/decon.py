@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Callable
 
 def decon(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
@@ -35,4 +36,56 @@ def decon(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     result = np.fft.ifft(decon_fft)
 
     # 5. Return the real part
+    return result.real
+
+def zero_pad(array: np.ndarray, size: int) -> np.ndarray:
+    """
+    Pads an array with zeros up to the specified size.
+    """
+    if size < len(array):
+        raise ValueError("Target size must be greater than or equal to array length.")
+    
+    padded_array = np.zeros(size, dtype=array.dtype)
+    padded_array[:len(array)] = array
+    return padded_array
+
+
+def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray]) -> np.ndarray:
+    """
+    Performs deconvolution using the DFT method with custom padding.
+
+    The process involves:
+    1. Determining the required size N for padding (N = len(signal) + len(kernel) - 1).
+    2. Applying the custom padding function to the signal and kernel up to size N.
+    3. Applying FFT to the padded arrays (without using the n=N argument).
+    4. Dividing the signal FFT by the kernel FFT.
+    5. Applying IFFT to the result.
+    6. Returning the real part of the result.
+
+    Args:
+        signal: The measured signal array.
+        kernel: The kernel (point spread function) array.
+        pad_func: A function (array, size) -> padded_array used for padding.
+
+    Returns:
+        The deconvolved result (real part).
+    """
+    # 1. Calculate the required size N for padding
+    N = len(signal) + len(kernel) - 1
+
+    # 2. Apply custom padding
+    padded_signal = pad_func(signal, N)
+    padded_kernel = pad_func(kernel, N)
+
+    # 3. Apply FFT to padded arrays
+    signal_fft = np.fft.fft(padded_signal)
+    kernel_fft = np.fft.fft(padded_kernel)
+
+    # 4. Divide in Fourier space
+    decon_fft = signal_fft / kernel_fft
+
+    # 5. Apply IFFT
+    result = np.fft.ifft(decon_fft)
+
+    # 6. Return the real part
     return result.real
