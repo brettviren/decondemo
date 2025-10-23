@@ -25,8 +25,9 @@ def cli():
 @click.option('--taper-length', type=int, default=10, help='Length of the window taper applied to the ends of the signal/kernel.')
 @click.option('--signal-is-measure', default=False, is_flag=True, 
               help='The generated signal is interpreted as the measure instead of forming measure via convolution of signal with kernel')
+@click.option('--noise-rms', type=float, default=0.0, help='RMS value of white noise to add to the measured signal or measure.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, output):
+def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, output):
     """
     Perform both convolution and deconvolution of a Gaussian true signal and a Gaussian kernel. 
     """
@@ -46,6 +47,21 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
         signal_measured = signal_true
     else:
         signal_measured = np.convolve(signal_true, kernel, mode='full')
+        
+    # 2b. Apply Noise if requested
+    if noise_rms > 0.0:
+        if signal_is_measure:
+            # Noise applied directly to the measure (signal_true)
+            noise = signals.white_noise(size=len(signal_true), rms=noise_rms)
+            signal_measured = signal_true + noise
+            noise_target = "Measure"
+        else:
+            # Noise applied to the convolved signal (signal_measured)
+            noise = signals.white_noise(size=len(signal_measured), rms=noise_rms)
+            signal_measured = signal_measured + noise
+            noise_target = "Measured Signal"
+    else:
+        noise_target = "None"
     
     # 3. Determine Padding Function
     if window == 'none':
@@ -74,6 +90,7 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     click.echo(f"Measured Signal Size (N): {len(signal_measured)}")
     click.echo(f"Deconvolved Result Size: {len(decon_result)}")
     click.echo(f"Windowing Used: {window_info}")
+    click.echo(f"Noise RMS: {noise_rms} (Applied to: {noise_target})")
     click.echo(f"------------------")
 
     # 5. Prepare DataAttr objects and Plot Results
@@ -83,10 +100,10 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     if signal_is_measure:
         # Case 1: Plot 3 arrays (Measure, Kernel, Decon)
         
-        # 1. Measure (signal_true is used as measure)
+        # 1. Measure (signal_measured now holds the potentially noisy measure)
         arrays.append(DataAttr(
-            data=signal_true, 
-            attr={'name': 'measure', 'title': 'Measure'}
+            data=signal_measured, 
+            attr={'name': 'measure', 'title': 'Measure' + (' + Noise' if noise_rms > 0 else '')}
         ))
         
         # 2. Kernel
@@ -116,10 +133,10 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
             attr={'name': 'kernel', 'title': 'Kernel (PSF)'}
         ))
         
-        # 3. Measured Signal
+        # 3. Measured Signal (signal_measured now holds the potentially noisy convolution)
         arrays.append(DataAttr(
             data=signal_measured, 
-            attr={'name': 'signal_measured', 'title': 'Measured Signal (Convolution)'}
+            attr={'name': 'signal_measured', 'title': 'Measured Signal (Convolution)' + (' + Noise' if noise_rms > 0 else '')}
         ))
         
         # 4. Deconvolved Result
