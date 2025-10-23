@@ -1,6 +1,17 @@
 import numpy as np
 from typing import Dict, Any
 
+def nhalf(N):
+    '''
+    Return the number of "positive" frequency samples in a sampling of size N.
+
+    This excludes zero frequency and any Nyquist frequency sample.  As well as
+    any frequency samples above the Nyquist frequency (aka "negative
+    frequencies").
+    '''
+    if N%2: return (N-1)//2
+    return (N-2)//2
+
 def fftfreq(n, d=1.0):
     """
     A variant on numpy.fft.fftfreq which flips the "negative" frequencies to
@@ -15,7 +26,6 @@ def fftshift(x):
     defined to be consistent with fftfreq() above.
     """
     return x
-
 
 
 class DataAttr:
