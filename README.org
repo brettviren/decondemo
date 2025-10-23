@@ -29,7 +29,7 @@ uv run decondemo plot --output basic-convo-decon.svg
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-convo-decon.svg]]
+[[basic-convo-decon.svg]]
 
 
 The columns:
@@ -83,7 +83,7 @@ uv run decondemo plot --signal-is-measure --output basic-decon.svg
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-decon.svg]]
+[[basic-decon.svg]]
 
 
 Like in the matched kernel case, the recovered signal D = M/K is shifted back in
@@ -112,7 +112,7 @@ uv run decondemo plot --signal-is-measure --filter-name=lowpass --filter-scale=0
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-filtered-decon.svg]]
+[[basic-filtered-decon.svg]]
 
 
 This inserts the filter F waveform and spectrum.  The chosen filter is a
@@ -138,7 +138,7 @@ uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-convo-decon-noisy.svg]]
+[[basic-convo-decon-noisy.svg]]
 
 In fact, one may rerun the demo with noise that is too small to be visible in
 the measured waveform M and the D waveform is still unrecognizable as signal.
@@ -159,7 +159,7 @@ uv run decondemo plot --noise-rms 0.1 --filter-name=lowpass --filter-scale=0.1 -
 #+END_SRC
 
 #+RESULTS:
-[[file:basic-convo-decon-noise-filter.svg]]
+[[basic-convo-decon-noise-filter.svg]]
 
 Note, the noise has been increased by an order of magnitude to give the filter a
 greater challenge and we also use matched convolution and deconvolution kernels
