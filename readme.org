@@ -39,6 +39,7 @@ We identify a few types of signals and give them names:
 - S :: A "true signal", typically not directly observable in nature.
 - K :: A "kernel" used for convolution or deconvolution.
 - M :: A "measure" of a true signal typically through some response kernel and potentially in the presence of noise.
+- N :: A measure of pure "noise" lacking any "true signal".
 - D :: A "deconvolved signal" or "recovered signal" or "signal estimate"
 - F :: A "filter" applied as part of a (de)convolution.
 
@@ -285,3 +286,14 @@ greater challenge and yet the signal is recovered reasonably well.  The main
 peak is above the residual (unfiltered) noise and noise appears to have
 distorted the main peak away from its True Gaussian shape
 
+* Spectral leakage
+
+tbd
+
+* Mitigation with tapering 
+
+tbd
+
+* Mitigation with extrapolation
+
+tbd

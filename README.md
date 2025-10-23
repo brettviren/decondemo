@@ -1,15 +1,18 @@
-- [Goals and getting started](#org0aa241a)
-- [Demo terms and overview](#org06c4350)
-- [Matched convolution and deconvolution](#org703b96c)
-- [Unmatched convolution and deconvolution](#orgca953fc)
-- [Shifts and cycles](#org2741822)
-- [Filtered case](#org52a6562)
-- [Adding noise](#org472d360)
-- [Noise filters](#org163528b)
+- [Goals and getting started](#orgf022aa1)
+- [Demo terms and overview](#org9b3451d)
+- [Matched convolution and deconvolution](#org3952b66)
+- [Unmatched convolution and deconvolution](#org2d4075b)
+- [Shifts and cycles](#org974a95a)
+- [Filtered case](#org11c0e57)
+- [Adding noise](#orge22c5e2)
+- [Noise filters](#orgdd717dd)
+- [Spectral leakage](#org23f65bf)
+- [Mitigation with tapering](#orgb249849)
+- [Mitigation with extrapolation](#org4ecc943)
 
 
 
-<a id="org0aa241a"></a>
+<a id="orgf022aa1"></a>
 
 # Goals and getting started
 
@@ -31,7 +34,7 @@ $ decondemo --help
 ```
 
 
-<a id="org06c4350"></a>
+<a id="org9b3451d"></a>
 
 # Demo terms and overview
 
@@ -44,6 +47,7 @@ We identify a few types of signals and give them names:
 -   **S:** A "true signal", typically not directly observable in nature.
 -   **K:** A "kernel" used for convolution or deconvolution.
 -   **M:** A "measure" of a true signal typically through some response kernel and potentially in the presence of noise.
+-   **N:** A measure of pure "noise" lacking any "true signal".
 -   **D:** A "deconvolved signal" or "recovered signal" or "signal estimate"
 -   **F:** A "filter" applied as part of a (de)convolution.
 
@@ -85,7 +89,7 @@ M = Spad*Kpad
 Padding for deconvolution is essentially the same. However, the filter F, despite being in the numerator, is merely multiplied and does not lead to additional padding. F is a real-valued function in the Fourier domain sampled with the sampling shared by S and K.
 
 
-<a id="org703b96c"></a>
+<a id="org3952b66"></a>
 
 # Matched convolution and deconvolution
 
@@ -95,9 +99,9 @@ We start with the default demo output:
 uv run decondemo plot --output basic-convo-decon.svg
 ```
 
-<div class="html" id="orgb04b595">
+<div class="html" id="org43d8069">
 
-<div id="orgc46a530" class="figure">
+<div id="orga096e8a" class="figure">
 <p><img src="basic-convo-decon.svg" alt="basic-convo-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -125,7 +129,7 @@ Some things to note about these plots
 -   We see in the spectrum of D some high-frequency energy. This arises from a combination of floating point errors and dividing by small values of K in the deconvolution. Later, we will address this with a **filter** below.
 
 
-<a id="orgca953fc"></a>
+<a id="org2d4075b"></a>
 
 # Unmatched convolution and deconvolution
 
@@ -135,9 +139,9 @@ Now consider a measure M that that is **not** formed as a convolution S\*K but i
 uv run decondemo plot --signal-is-measure --output basic-decon.svg
 ```
 
-<div class="html" id="org9e635f7">
+<div class="html" id="org3c67b7a">
 
-<div id="org78a28a5" class="figure">
+<div id="org008b545" class="figure">
 <p><img src="basic-decon.svg" alt="basic-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -151,7 +155,7 @@ Things to note
 -   D gains high-frequency "wiggles". They are due to the kernel K not matching the (unknown) kernel used to produce the measure M. Specifically, since M here is constructed as a simple Gaussian waveform it has a single Gaussian spectrum whereas in the previous matched-kernel case we can clearly see two Gaussian shapes in that M-spectrum. Below we will address this with a **filter**.
 
 
-<a id="org2741822"></a>
+<a id="org974a95a"></a>
 
 # Shifts and cycles
 
@@ -167,9 +171,9 @@ The demo can show this by adjusting the location of the kernel to be later:
 uv run decondemo plot --kernel-size=100 --kernel-mean=90 --signal-is-measure --output basic-decon-shift.svg
 ```
 
-<div class="html" id="org6a3d11b">
+<div class="html" id="org349a4d3">
 
-<div id="orgfab9ab6" class="figure">
+<div id="org0ed8667" class="figure">
 <p><img src="basic-decon-shift.svg" alt="basic-decon-shift.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -179,7 +183,7 @@ uv run decondemo plot --kernel-size=100 --kernel-mean=90 --signal-is-measure --o
 One must take care to properly interpret the last Nk samples of D. The "end" of D is really at sample Nm=Nd-Nk-1, where Nm here is the original, pre-padded size of input M. It is possible to **roll** D by Nk to move these early time samples to the front of the array. One must then take care to interpret the rolled-D as starting Nk samples earlier in time than the original input M.
 
 
-<a id="org52a6562"></a>
+<a id="org11c0e57"></a>
 
 # Filtered case
 
@@ -191,9 +195,9 @@ The filter will distort the recovered signal D. We attempt to craft the filter t
 uv run decondemo plot --signal-is-measure --filter-name=lowpass --filter-scale=0.1  --output basic-filtered-decon.svg
 ```
 
-<div class="html" id="orgdd184f8">
+<div class="html" id="orgeef5f5c">
 
-<div id="orgc791cb8" class="figure">
+<div id="orgb7649bf" class="figure">
 <p><img src="basic-filtered-decon.svg" alt="basic-filtered-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -205,7 +209,7 @@ This inserts the filter F waveform and spectrum. The chosen filter is a "low-pas
 Note the filter waveform is cyclically symmetric about the zero interval sample. This is a result of the filter being symmetrically defined in Fourier space as a real valued sampling. This is good for as because it is effectively convolved with the measure M and we do not want it to introduce any artificial shifts.
 
 
-<a id="org472d360"></a>
+<a id="orge22c5e2"></a>
 
 # Adding noise
 
@@ -215,9 +219,9 @@ Real signals always come with noise. The demo has a simple white noise model. We
 uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
 ```
 
-<div class="html" id="org4c47fe0">
+<div class="html" id="orgd61c88d">
 
-<div id="org9f745a2" class="figure">
+<div id="orgb9f6778" class="figure">
 <p><img src="basic-convo-decon-noisyq.svg" alt="basic-convo-decon-noisyq.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -227,7 +231,7 @@ uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
 In fact, one may rerun the demo with noise that is too small to be visible in the measured waveform M and the D waveform is still unrecognizable as signal. Matters become even more hopeless when the convolution and deconvolution kernels are not matched.
 
 
-<a id="org163528b"></a>
+<a id="orgdd717dd"></a>
 
 # Noise filters
 
@@ -237,9 +241,9 @@ The effect of adding noise problem is similar to that of the floating point erro
 uv run decondemo plot --noise-rms 0.1 --filter-name=lowpass --filter-scale=0.1 --filter-power=3.0 --output basic-convo-decon-noise-filter.svg
 ```
 
-<div class="html" id="org3464aff">
+<div class="html" id="org9784201">
 
-<div id="org570007e" class="figure">
+<div id="org7da4323" class="figure">
 <p><img src="basic-convo-decon-noise-filter.svg" alt="basic-convo-decon-noise-filter.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -247,6 +251,27 @@ uv run decondemo plot --noise-rms 0.1 --filter-name=lowpass --filter-scale=0.1 -
 </div>
 
 Note, the noise has been increased by an order of magnitude to give the filter a greater challenge and yet the signal is recovered reasonably well. The main peak is above the residual (unfiltered) noise and noise appears to have distorted the main peak away from its True Gaussian shape
+
+
+<a id="org23f65bf"></a>
+
+# Spectral leakage
+
+tbd
+
+
+<a id="orgb249849"></a>
+
+# Mitigation with tapering
+
+tbd
+
+
+<a id="org4ecc943"></a>
+
+# Mitigation with extrapolation
+
+tbd
 
 ## Footnotes
 
