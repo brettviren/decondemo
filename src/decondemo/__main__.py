@@ -4,7 +4,7 @@ import numpy as np
 from . import signals
 from . import decon
 from . import plots
-from .plots import DataAttr
+from .util import DataAttr
 
 @click.group(context_settings=dict(show_default = True,
                                    help_option_names=['-h', '--help']))

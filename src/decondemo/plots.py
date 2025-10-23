@@ -1,22 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Sequence, Optional, List, Dict, Any
+from typing import Sequence, Optional, List, Any
 from numpy.typing import ArrayLike
 
-class DataAttr:
-    """
-    Wrapper class to associate metadata attributes (attr) with a numpy array (data).
-    """
-    def __init__(self, data: np.ndarray, attr: Dict[str, Any]):
-        self.data = data
-        self.attr = attr
-
-    def __getitem__(self, key):
-        """
-        Attempts to retrieve metadata attribute using dictionary key access.
-        """
-        return self.attr[key]
-
+from .util import DataAttr
+from .util import fftshift as no_fftshift
+from .util import fftfreq as pos_fftfreq
 
 def plot3(measure: Sequence[float], kernel: Sequence[float], decon: Sequence[float], output_path: Optional[str] = None):
     """
@@ -142,6 +131,11 @@ def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
         for i in range(1, N):
             axes[i, 0].sharex(axes[0, 0])
     
+    # fftshift = np.fft.fftshift
+    # fftfreq = np.fft.fftfreq
+    fftshift = no_fftshift
+    fftfreq = pos_fftfreq
+
     for i, array_wrapper in enumerate(arrays):
         
         array = array_wrapper.data
@@ -162,17 +156,18 @@ def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
         fft_result = np.fft.fft(array)
         
         # Frequency axis (normalized to 0 to 1/dt, assuming dt=1)
-        freq = np.fft.fftfreq(L)
+        freq = fftfreq(L)
         
         # --- Column 2: Fourier Amplitude ---
         ax2 = axes[i, 1]
-        # We plot the magnitude of the FFT, usually centered (fftshift) for visualization
+        # We plot the magnitude of the FFT
         fft_mag = np.abs(fft_result)
         
         # Plot centered spectrum
-        ax2.plot(np.fft.fftshift(freq), np.fft.fftshift(fft_mag))
-        ax2.set_title(f"{title} - Fourier amplitude")
+        ax2.plot(fftshift(freq), fftshift(fft_mag))
+        ax2.set_title(f"{title} - Fourier amplitude (log)")
         ax2.grid(True)
+        ax2.set_yscale('log')
         if i == N - 1:
             ax2.set_xlabel('Frequency Index')
         
@@ -183,8 +178,8 @@ def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
         unwrapped_phase = np.unwrap(fft_phase)
         
         # Plot centered phase
-        ax3.plot(np.fft.fftshift(freq), np.fft.fftshift(unwrapped_phase))
-        ax3.set_title(f"{title} - Fourier angle")
+        ax3.plot(fftshift(freq), fftshift(unwrapped_phase))
+        ax3.set_title(f"{title} - Fourier angle (rad)")
         ax3.grid(True)
         if i == N - 1:
             ax3.set_xlabel('Frequency Index')

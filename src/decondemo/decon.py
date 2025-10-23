@@ -1,6 +1,9 @@
 import numpy as np
 from typing import Callable
 
+from .filters import Filter        # base filter is identity filter
+from .util import fftfreq as pos_fftfreq
+
 def decon(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
     Performs deconvolution using the DFT method.
@@ -50,7 +53,7 @@ def zero_pad(array: np.ndarray, size: int) -> np.ndarray:
     return padded_array
 
 
-def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray]) -> np.ndarray:
+def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray], filt_func: Callable[[np.ndarray], np.ndarray] = Filter()) -> np.ndarray:
     """
     Performs deconvolution using the DFT method with custom padding.
 
@@ -66,6 +69,7 @@ def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.nda
         signal: The measured signal array.
         kernel: The kernel (point spread function) array.
         pad_func: A function (array, size) -> padded_array used for padding.
+        filt_func: A function (array) -> filter array to filter the decon.
 
     Returns:
         The deconvolved result (real part).
@@ -81,8 +85,10 @@ def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.nda
     signal_fft = np.fft.fft(padded_signal)
     kernel_fft = np.fft.fft(padded_kernel)
 
-    # 4. Divide in Fourier space
-    decon_fft = signal_fft / kernel_fft
+    filter_fft = filt_func(N)
+
+    # 4. Divide in Fourier space with multiplicative filter
+    decon_fft = signal_fft * filter_fft / kernel_fft
 
     # 5. Apply IFFT
     result = np.fft.ifft(decon_fft)
