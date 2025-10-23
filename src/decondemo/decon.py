@@ -53,7 +53,7 @@ def zero_pad(array: np.ndarray, size: int) -> np.ndarray:
     return padded_array
 
 
-def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray], filt_func: Callable[[np.ndarray], np.ndarray] = Filter()) -> np.ndarray:
+def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray], filt_func: Callable[[int], np.ndarray] = Filter()) -> np.ndarray:
     """
     Performs deconvolution using the DFT method with custom padding.
 
@@ -69,7 +69,7 @@ def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.nda
         signal: The measured signal array.
         kernel: The kernel (point spread function) array.
         pad_func: A function (array, size) -> padded_array used for padding.
-        filt_func: A function (array) -> filter array to filter the decon.
+        filt_func: A function (N) -> filter array used to multiply the deconvolved FFT.
 
     Returns:
         The deconvolved result (real part).
