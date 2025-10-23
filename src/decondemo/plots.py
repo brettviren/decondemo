@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Sequence, Optional
+from typing import Sequence, Optional, List
+from numpy.typing import ArrayLike
 
 def plot3(measure: Sequence[float], kernel: Sequence[float], decon: Sequence[float], output_path: Optional[str] = None):
     """
@@ -89,6 +90,108 @@ def plot4(signal_true: Sequence[float], kernel: Sequence[float], signal_measured
     axes[3].set_xlabel('Sample Index')
     axes[3].grid(True)
     
+    plt.tight_layout()
+    
+    if output_path:
+        plt.savefig(output_path)
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+def plotn(arrays: List[np.ndarray], output_path: Optional[str] = None):
+    """
+    Plots N arrays in an N x 3 grid, showing the array values, 
+    the magnitude of its Fourier Transform, and the unrolled phase of its Fourier Transform.
+
+    Metadata (title) is expected to be stored in array.dtype.metadata['title'].
+
+    Args:
+        arrays: A list of numpy arrays.
+        output_path: If provided, saves the plot to this path instead of showing it interactively.
+    """
+    N = len(arrays)
+    if N == 0:
+        return
+
+    # Create figure with N rows and 3 columns
+    # sharex=True for the first column (interval plots)
+    # sharex=False for the second and third columns (frequency plots)
+    fig, axes = plt.subplots(N, 3, figsize=(15, 3 * N), sharex='col')
+    
+    # If N=1, axes is a 1D array of length 3. We wrap it for consistent indexing.
+    if N == 1:
+        axes = [axes]
+
+    # Set sharex=False explicitly for columns 2 and 3 (index 1 and 2)
+    # Matplotlib's subplots(sharex='col') only shares the x-axis within a column.
+    # We need to ensure columns 2 and 3 are independent of column 1, and independent of each other.
+    # Since we used sharex='col', column 1 is shared. Columns 2 and 3 are also shared within themselves.
+    # We need to ensure columns 2 and 3 are NOT shared with column 1.
+    # Since we used sharex='col', only axes[i, 0] share x-axis, axes[i, 1] share x-axis, axes[i, 2] share x-axis.
+    # Let's manually manage sharing to ensure only column 1 is shared across rows.
+    
+    # Recreate subplots to manage sharing precisely:
+    # We want axes[i, 0] to share x-axis with axes[j, 0] (Col 1 shared)
+    # We want axes[i, 1] and axes[i, 2] to be independent of all others.
+    
+    # We will use the first column's axes (axes[:, 0]) to define the shared x-axis.
+    fig, axes = plt.subplots(N, 3, figsize=(15, 3 * N))
+    
+    # Set up sharing for the first column
+    if N > 1:
+        for i in range(1, N):
+            axes[i, 0].sharex(axes[0, 0])
+    
+    for i, array in enumerate(arrays):
+        
+        # Ensure array is numpy array
+        array = np.asarray(array)
+        L = len(array)
+        
+        # Get title from metadata
+        metadata = getattr(array.dtype, 'metadata', {})
+        title = metadata.get('title', f'Array {i+1}')
+        
+        # --- Column 1: Interval Plot ---
+        ax1 = axes[i, 0]
+        ax1.step(np.arange(L), array, where='mid')
+        ax1.set_title(f"{title} - interval")
+        ax1.grid(True)
+        if i == N - 1:
+            ax1.set_xlabel('Sample Index')
+
+        # Calculate FFT
+        fft_result = np.fft.fft(array)
+        
+        # Frequency axis (normalized to 0 to 1/dt, assuming dt=1)
+        freq = np.fft.fftfreq(L)
+        
+        # --- Column 2: Fourier Amplitude ---
+        ax2 = axes[i, 1]
+        # We plot the magnitude of the FFT, usually centered (fftshift) for visualization
+        fft_mag = np.abs(fft_result)
+        
+        # Plot centered spectrum
+        ax2.plot(np.fft.fftshift(freq), np.fft.fftshift(fft_mag))
+        ax2.set_title(f"{title} - Fourier amplitude")
+        ax2.grid(True)
+        if i == N - 1:
+            ax2.set_xlabel('Frequency Index')
+        
+        # --- Column 3: Fourier Angle (Unrolled Phase) ---
+        ax3 = axes[i, 2]
+        # Calculate phase and unwrap it
+        fft_phase = np.angle(fft_result)
+        unwrapped_phase = np.unwrap(fft_phase)
+        
+        # Plot centered phase
+        ax3.plot(np.fft.fftshift(freq), np.fft.fftshift(unwrapped_phase))
+        ax3.set_title(f"{title} - Fourier angle")
+        ax3.grid(True)
+        if i == N - 1:
+            ax3.set_xlabel('Frequency Index')
+            
     plt.tight_layout()
     
     if output_path:
