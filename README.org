@@ -1,10 +1,17 @@
 #+title: Simple decon demo
+#+options: toc:t
+#+PROPERTY: header-args:sh :results file graphics :exports both :dir . :wrap "html\n#+ATTR_HTML: :width 80%"
+
+* Goals and getting started
 
 Goals are to illustrate:
 
 - [X] basic convolution and deconvolution
 - [X] deconvolution shifts
-- [ ] deconvolution filters
+- [X] floating point errors
+- [X] filters for FP errors
+- [X] effects of noise
+- [X] filters for noise
 - [ ] spectral leakage
 - [ ] mitigation with window / tapering functions
 - [ ] mitigation with extrapolation
@@ -13,3 +20,148 @@ Goals are to illustrate:
 $ uv tool install git+https://github.com/brettviren/decondemo
 $ decondemo --help
 #+end_example
+
+
+* Matched convolution and deconvolution
+
+#+BEGIN_SRC sh 
+uv run decondemo plot --output basic-convo-decon.svg
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-convo-decon.svg]]
+
+
+The columns:
+
+1. A signal as a waveform in interval space (eg "time domain").
+2. The absolute value (amplitude) of the signal in Fourier space (eg "frequency domain").
+3. The unwrapped angle (phase) of the signal in Fourier space.
+
+The interval representation is exactly identical to the combination of the
+Fourier representations via the DFT.  The sample period is a unitless 1.0 as is
+the sample frequency.  The Nyquist frequency is 0.5.  The number of samples in
+interval and Fourier space are the same.  As the interval representation is
+real, the Fourier representation has Hermitian symmetry.
+
+The rows:
+
+- S :: A "true signal" as a (truncated) Gaussian shape with some offset from zero.
+- K :: A "kernel" also as a truncated Gaussian shape.
+- M :: A "measure" which is the convolution M=S*K.
+- D :: A "deconvolved signal" from D = M/K = (S*K)/K = S.
+
+When variables are given in capital letters, they refer to a complex-valued
+*spectrum* that is the Fourier representations of the interval-space *waveform*.
+
+In this very basic example, the convolution to form measure M is essentially
+what the WCT simulation does though WCT uses a 2D kernel that is rather more
+varied than a simple Gaussian.  The deconvolution to recover D as an estimate of
+S is half of what WCT signal-processing does, again with a more rich 2D kernel
+that is derived from the simulation 2D kernel.  In this simple 1D case, the
+exact same kernel K is used in the convolution to form M and the deconvolution
+to achive D.  To within floating point errors, D is exactly S.
+
+Some things to note about these plots
+
+- The recovered signal D is shifted "backwards in time" relative to the measure
+  and its peak is in the same location as the original signal S.  This is due to
+  the kernel K being peaked away from the zero sample.
+
+- We see in the spectrum of D some high-frequency energy.  This arises from a
+  combination of floating point errors and dividing by small values of K in the
+  deconvolution.  Later, we will address this with a *filter* below.
+
+* Unmatched convolution and deconvolution
+
+Now consider a measure M that is not produced by a convolution of signal S with
+kernel K and deconvolved with matched kernel K.  The demo simulates this simply
+by generating the measure directly as a Gaussian waveform.
+
+#+BEGIN_SRC sh 
+uv run decondemo plot --signal-is-measure --output basic-decon.svg
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-decon.svg]]
+
+
+Like in the matched kernel case, the recovered signal D = M/K is shifted back in
+tme relative to the measure M due to the kernel K being offset from zero.  The
+main difference we see is D gains high-frequency wiggles.  This is due to the
+kernel K not matching what (unknown) kernel was used to produce the measure M.
+Specifically, since M is a simple Gaussian it has a single Gaussian spectrum
+unlike the matched case where we see M has two Gaussians in the spectrum and the
+K part is thus almost perfectly divided out.
+
+This unmatched case is analogous to the full WCT deconvolution where the
+deconvolution kernel does not match the convolution kernel, be that applied in
+simulation or in nature.
+
+* Filtered case
+
+In order to combat deconvolution artifacts (and later noise) we may apply an
+arbitrary filter as part of the deconvolution to form D = M*F/K.
+
+The filter will distort the recovered signal D.  We attempt to craft the filter
+to provide desirable distortion while minimizing unwanted distortion.  In
+practice this needs a careful optimization.  Here is one example.
+
+#+BEGIN_SRC sh 
+uv run decondemo plot --signal-is-measure --filter-name=lowpass --filter-scale=0.1  --output basic-filtered-decon.svg
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-filtered-decon.svg]]
+
+
+This inserts the filter F waveform and spectrum.  The chosen filter is a
+"low-pass filter" (aka a "high frequency filter") in that it "passes" low
+frequency energy and attenuates (filters) the rest.  In this example, the
+attenuation reduces the effect of dividing by small values of K and removes the
+high-frequency wiggles.
+
+Note the filter waveform is cyclically symmetric about the zero interval sample.
+This is a result of the filter being symmetrically defined in Fourier space as a
+real valued sampling.  This is good for as because it is effectively convolved
+with the measure M and we do not want it to introduce any artificial shifts.
+
+* Adding noise
+
+Real signals always come with noise.  The demo has a simple white noise model.
+We go back to the ideal matched case and add the smallest of noise and that it
+utterly destroys the ability to recover the signal.
+
+
+#+BEGIN_SRC sh 
+uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-convo-decon-noisy.svg]]
+
+In fact, one may rerun the demo with noise that is too small to be visible in
+the measured waveform M and the D waveform is still unrecognizable as signal.
+Matters become even more hopeless when the convolution and deconvolution kernels
+are not matched.
+
+* Noise filters
+
+The origin of the noise problem is similar to that of floating point errors but
+much larger.  The high frequency power from the noise is amplified by the
+division of small values of K.  As with FP errors, we may apply a low-pass
+filter to combat the amplified HF noise.  However, the filter must be more
+aggressive.
+
+
+#+BEGIN_SRC sh 
+uv run decondemo plot --noise-rms 0.1 --filter-name=lowpass --filter-scale=0.1 --filter-power=3.0 --output basic-convo-decon-noise-filter.svg
+#+END_SRC
+
+#+RESULTS:
+[[file:basic-convo-decon-noise-filter.svg]]
+
+Note, the noise has been increased by an order of magnitude to give the filter a
+greater challenge and we also use matched convolution and deconvolution kernels
+to focus on noise and filtering. The signal is recovered reasonably well though
+clearly the effect of noise can be seen.

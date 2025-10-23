@@ -1,3 +1,5 @@
+import os
+import sys
 import click
 import numpy as np
 
@@ -32,10 +34,15 @@ def cli():
 @click.option('--filter-power', type=float, default=2.0, help='Power parameter for the filter steepness.')
 @click.option('--filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the filter to zero.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, filter_name, filter_scale, filter_power, filter_ignore_baseline, output):
+def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, filter_name, filter_scale, filter_power, filter_ignore_baseline, output):
     """
     Perform both convolution and deconvolution of a Gaussian true signal and a Gaussian kernel. 
     """
+    if output and os.path.exists(output):
+        sys.stderr.write(f'file exists, remove to remake: {output}\n')
+        sys.stdout.write(output)
+        sys.stdout.flush()
+        return
     
     # 1. Generate True Signal and Kernel
     signal_true = signals.gaussian(size=signal_size, mean=signal_mean, sigma=signal_sigma)
@@ -106,16 +113,6 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
         click.echo(f"Error during deconvolution: {e}", err=True)
         return
 
-    click.echo(f"--- Parameters ---")
-    click.echo(f"True Signal Size: {len(signal_true)}")
-    click.echo(f"Kernel Size: {len(kernel)}")
-    click.echo(f"Measured Signal Size (N): {len(signal_measured)}")
-    click.echo(f"Deconvolved Result Size: {len(decon_result)}")
-    click.echo(f"Windowing Used: {window_info}")
-    click.echo(f"Noise RMS: {noise_rms} (Applied to: {noise_target})")
-    click.echo(f"Filter: {filter_name} (Scale: {filter_scale}, Power: {filter_power}, Ignore Baseline: {filter_ignore_baseline})")
-    click.echo(f"------------------")
-
     # 6. Prepare DataAttr objects and Plot Results
     
     arrays = []
@@ -168,12 +165,15 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
             attr={'name': 'decon', 'title': 'Deconvolved Result'}
         ))
 
-    if (filter_name is not "none"):
+    if filter_name != "none":
         arrays.insert(-1, DataAttr(
             data=np.fft.fft(filt_func(decon_result.shape[0])).real,
             attr=dict(name='filter', title='Frequency Filter')))
 
     plots.plotn(arrays, output_path=output)
+    if output:
+        sys.stdout.write(output)
+        sys.stdout.flush()
 
 if __name__ == '__main__':
     cli()
