@@ -5,6 +5,7 @@ from . import signals
 from . import decon
 from . import plots
 from .util import DataAttr
+from .filters import Filter, Lowpass, Highpass # Import filter classes
 
 @click.group(context_settings=dict(show_default = True,
                                    help_option_names=['-h', '--help']))
@@ -26,8 +27,12 @@ def cli():
 @click.option('--signal-is-measure', default=False, is_flag=True, 
               help='The generated signal is interpreted as the measure instead of forming measure via convolution of signal with kernel')
 @click.option('--noise-rms', type=float, default=0.0, help='RMS value of white noise to add to the measured signal or measure.')
+@click.option('--filter-name', type=click.Choice(['none', 'lowpass', 'highpass']), default='none', help='Type of frequency-space filter to apply during deconvolution.')
+@click.option('--filter-scale', type=float, default=1.0, help='Scale parameter for the filter (e.g., cutoff frequency).')
+@click.option('--filter-power', type=float, default=2.0, help='Power parameter for the filter steepness.')
+@click.option('--filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the filter to zero.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, output):
+def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, filter_name, filter_scale, filter_power, filter_ignore_baseline, output):
     """
     Perform both convolution and deconvolution of a Gaussian true signal and a Gaussian kernel. 
     """
@@ -77,9 +82,26 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
         pad_func = decon.Blackman(taper_length)
         window_info = f"Blackman (Taper Length: {taper_length})"
     
-    # 4. Perform Deconvolution using custom padding
+    # 4. Determine Filter Function
+    filter_params = {
+        'scale': filter_scale,
+        'power': filter_power,
+        'ignore_baseline': filter_ignore_baseline
+    }
+    
+    if filter_name == 'none':
+        filt_func = Filter(**filter_params)
+    elif filter_name == 'lowpass':
+        filt_func = Lowpass(**filter_params)
+    elif filter_name == 'highpass':
+        filt_func = Highpass(**filter_params)
+    else:
+        # Should be unreachable due to click.Choice validation
+        raise ValueError(f"Unknown filter name: {filter_name}")
+
+    # 5. Perform Deconvolution using custom padding and filter
     try:
-        decon_result = decon.decon_pad(signal_measured, kernel, pad_func)
+        decon_result = decon.decon_pad(signal_measured, kernel, pad_func, filt_func=filt_func)
     except ValueError as e:
         click.echo(f"Error during deconvolution: {e}", err=True)
         return
@@ -91,9 +113,10 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     click.echo(f"Deconvolved Result Size: {len(decon_result)}")
     click.echo(f"Windowing Used: {window_info}")
     click.echo(f"Noise RMS: {noise_rms} (Applied to: {noise_target})")
+    click.echo(f"Filter: {filter_name} (Scale: {filter_scale}, Power: {filter_power}, Ignore Baseline: {filter_ignore_baseline})")
     click.echo(f"------------------")
 
-    # 5. Prepare DataAttr objects and Plot Results
+    # 6. Prepare DataAttr objects and Plot Results
     
     arrays = []
     
