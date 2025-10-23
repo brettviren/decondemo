@@ -1,7 +1,22 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Sequence, Optional, List
+from typing import Sequence, Optional, List, Dict, Any
 from numpy.typing import ArrayLike
+
+class DataAttr:
+    """
+    Wrapper class to associate metadata attributes (attr) with a numpy array (data).
+    """
+    def __init__(self, data: np.ndarray, attr: Dict[str, Any]):
+        self.data = data
+        self.attr = attr
+
+    def __getitem__(self, key):
+        """
+        Attempts to retrieve metadata attribute using dictionary key access.
+        """
+        return self.attr[key]
+
 
 def plot3(measure: Sequence[float], kernel: Sequence[float], decon: Sequence[float], output_path: Optional[str] = None):
     """
@@ -99,15 +114,16 @@ def plot4(signal_true: Sequence[float], kernel: Sequence[float], signal_measured
         plt.show()
 
 
-def plotn(arrays: List[np.ndarray], output_path: Optional[str] = None):
+def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
     """
-    Plots N arrays in an N x 3 grid, showing the array values, 
-    the magnitude of its Fourier Transform, and the unrolled phase of its Fourier Transform.
+    Plots N arrays (wrapped in DataAttr objects) in an N x 3 grid, 
+    showing the array values, the magnitude of its Fourier Transform, 
+    and the unrolled phase of its Fourier Transform.
 
-    Metadata (title) is expected to be stored in array.dtype.metadata['title'].
+    Metadata (title) is expected to be stored in array_wrapper.attr['title'].
 
     Args:
-        arrays: A list of numpy arrays.
+        arrays: A list of DataAttr instances, each containing a numpy array and metadata.
         output_path: If provided, saves the plot to this path instead of showing it interactively.
     """
     N = len(arrays)
@@ -115,43 +131,24 @@ def plotn(arrays: List[np.ndarray], output_path: Optional[str] = None):
         return
 
     # Create figure with N rows and 3 columns
-    # sharex=True for the first column (interval plots)
-    # sharex=False for the second and third columns (frequency plots)
-    fig, axes = plt.subplots(N, 3, figsize=(15, 3 * N), sharex='col')
-    
-    # If N=1, axes is a 1D array of length 3. We wrap it for consistent indexing.
-    if N == 1:
-        axes = [axes]
-
-    # Set sharex=False explicitly for columns 2 and 3 (index 1 and 2)
-    # Matplotlib's subplots(sharex='col') only shares the x-axis within a column.
-    # We need to ensure columns 2 and 3 are independent of column 1, and independent of each other.
-    # Since we used sharex='col', column 1 is shared. Columns 2 and 3 are also shared within themselves.
-    # We need to ensure columns 2 and 3 are NOT shared with column 1.
-    # Since we used sharex='col', only axes[i, 0] share x-axis, axes[i, 1] share x-axis, axes[i, 2] share x-axis.
-    # Let's manually manage sharing to ensure only column 1 is shared across rows.
-    
-    # Recreate subplots to manage sharing precisely:
-    # We want axes[i, 0] to share x-axis with axes[j, 0] (Col 1 shared)
-    # We want axes[i, 1] and axes[i, 2] to be independent of all others.
-    
-    # We will use the first column's axes (axes[:, 0]) to define the shared x-axis.
     fig, axes = plt.subplots(N, 3, figsize=(15, 3 * N))
     
-    # Set up sharing for the first column
+    # Ensure axes is 2D even if N=1 for consistent indexing axes[i, j]
+    if N == 1:
+        axes = np.array([axes])
+    
+    # Set up sharing for the first column (Time domain plots)
     if N > 1:
         for i in range(1, N):
             axes[i, 0].sharex(axes[0, 0])
     
-    for i, array in enumerate(arrays):
+    for i, array_wrapper in enumerate(arrays):
         
-        # Ensure array is numpy array
-        array = np.asarray(array)
+        array = array_wrapper.data
         L = len(array)
         
-        # Get title from metadata
-        metadata = getattr(array.dtype, 'metadata', {})
-        title = metadata.get('title', f'Array {i+1}')
+        # Get title from metadata dictionary (.attr)
+        title = array_wrapper.attr.get('title', f'Array {i+1}')
         
         # --- Column 1: Interval Plot ---
         ax1 = axes[i, 0]
