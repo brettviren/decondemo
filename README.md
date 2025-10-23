@@ -1,14 +1,15 @@
-- [Goals and getting started](#org9d3ffdb)
-- [Matched convolution and deconvolution](#orgd30c565)
-- [Unmatched convolution and deconvolution](#org78409ef)
-- [Shifts and cycles](#orgc344161)
-- [Filtered case](#org6c50090)
-- [Adding noise](#org557e76f)
-- [Noise filters](#org49e6816)
+- [Goals and getting started](#org0aa241a)
+- [Demo terms and overview](#org06c4350)
+- [Matched convolution and deconvolution](#org703b96c)
+- [Unmatched convolution and deconvolution](#orgca953fc)
+- [Shifts and cycles](#org2741822)
+- [Filtered case](#org52a6562)
+- [Adding noise](#org472d360)
+- [Noise filters](#org163528b)
 
 
 
-<a id="org9d3ffdb"></a>
+<a id="org0aa241a"></a>
 
 # Goals and getting started
 
@@ -30,109 +31,159 @@ $ decondemo --help
 ```
 
 
-<a id="orgd30c565"></a>
+<a id="org06c4350"></a>
+
+# Demo terms and overview
+
+Below we go through the demo in a series of steps. Each step gives a command line to run, its output plot and some discussion.
+
+We use **signal** to mean any discreet sampling regardless of its nature ("true signal" is given a special definition). We will talk about **waveforms** when referring to a real-valued, **interval-space** representation (sampling) of a signal and **spectrum** when referring to its complex-valued, Fourier space representation. These two representations are equivalent in terms of the information they embody.
+
+We identify a few types of signals and give them names:
+
+-   **S:** A "true signal", typically not directly observable in nature.
+-   **K:** A "kernel" used for convolution or deconvolution.
+-   **M:** A "measure" of a true signal typically through some response kernel and potentially in the presence of noise.
+-   **D:** A "deconvolved signal" or "recovered signal" or "signal estimate"
+-   **F:** A "filter" applied as part of a (de)convolution.
+
+We will say a size of a signal is Nx where "x" is the signal name. Nk is the size of a kernel.
+
+Expressed in Fourier-space, a detector response is modeled essentially as:
+
+```
+M = S*K + N
+```
+
+A filtered deconvolution is defined as:
+
+```
+D = M/K
+```
+
+When the convolution and deconvolution kernels are identical
+
+```
+D = M/K = (S*K)/K = S
+```
+
+To deal with FP error and noise, a Filter may be introduce:
+
+```
+D = F(M/K) = F(S*K)/K = FS
+```
+
+Convolution and deconvolution are performed with the "DFT method" (see [Convolution theorem](https://en.wikipedia.org/wiki/Discrete_Fourier_transform#Convolution_theorem_duality)). In order to avoid cyclic artifacts, both arrays are padded to achieve **linear size**. The above is more properly written as this pseudo code.
+
+```
+Nm = linear_size(Ns, Nk) # = Ns+Nk-1
+S -> Spad = pad(S, Nm)
+K -> Kpad = pad(K, Nm)
+M = Spad*Kpad
+```
+
+Padding for deconvolution is essentially the same. However, the filter F, despite being in the numerator, is merely multiplied and does not lead to additional padding. F is a real-valued function in the Fourier domain sampled with the sampling shared by S and K.
+
+
+<a id="org703b96c"></a>
 
 # Matched convolution and deconvolution
+
+We start with the default demo output:
 
 ```sh
 uv run decondemo plot --output basic-convo-decon.svg
 ```
 
-<div class="html" id="orgea04b65">
+<div class="html" id="orgb04b595">
 
-<div id="orgbb1a319" class="figure">
+<div id="orgc46a530" class="figure">
 <p><img src="basic-convo-decon.svg" alt="basic-convo-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
 
 </div>
 
-The columns:
+This plot and the ones that follow have three columns:
 
-1.  A signal as a waveform in interval space (eg "time domain").
-2.  The absolute value (amplitude) of the signal in Fourier space (eg "frequency domain").
-3.  The unwrapped angle (phase) of the signal in Fourier space.
+1.  A **waveform** in interval space (eg "time domain").
+2.  It's **spectrum amplitude** in Fourier space.
+3.  It's **spectrum angle** (unwrapped phase) in Fourier space.
 
-The interval representation is exactly identical to the combination of the Fourier representations via the DFT. The sample period is a unitless 1.0 as is the sample frequency. The Nyquist frequency is 0.5. The number of samples in interval and Fourier space are the same. As the interval representation is real, the Fourier representation has Hermitian symmetry.
-
-The rows may include:
-
--   **S:** A "true signal" as a (truncated) Gaussian shape with some offset from zero.
--   **K:** A "kernel" also as a truncated Gaussian shape.
--   **M:** A "measure" which is the convolution M=S\*K.
--   **D:** A "deconvolved signal" from D = M/K = (S\*K)/K = S.
--   **F:** A "filter" (not shown here, see below).
-
-When variables are given in capital letters, they refer to a complex-valued **spectrum** that is the Fourier representations of the interval-space **waveform**.
-
-In this very basic example, the convolution to form measure M is essentially what the WCT simulation does though WCT uses a 2D kernel that is rather more varied than a simple Gaussian. The deconvolution to recover D as an estimate of S is half of what WCT signal-processing does, again with a more rich 2D kernel that is derived from the simulation 2D kernel. In this simple 1D case, the exact same kernel K is used in the convolution to form M and the deconvolution to achive D. To within floating point errors, D is exactly S.
+The sample period in this demo is always a unitless 1.0 as is the sample frequency. The Nyquist frequency is thus always 0.5. The number of samples in interval and Fourier space are (of course) the same but differ between different signals. As the interval representation is real, the Fourier representation has Hermitian symmetry.
 
 Some things to note about these plots
 
--   The size of the measure M is larger than the size of both the signal S and the kernel K from which M is formed by convolution. This is because both S and K were **padded** to be a size that is the sum of their original sizes minus 1 prior to the convolution. This is required in order that the convolution suffers no **cyclic artifacts** though it is still subject to cyclic convolution.
+-   An identical kernel K is used in both the convolution to form M and the deconvolution to achieve D. To within floating point errors, D is exactly the true signal S.
 
--   The recovered signal D is **shifted** "backwards in time" relative to the measure and its peak is in the same location as the original signal S. This is due to the kernel K being peaked away from the zero sample.
+-   The measure M takes linear size of S and K. The recovered signal D takes yet larger linear size of M and K.
+
+-   The peak of the measure M is **shifted forwards** relative to the peaks in both the signal S and kernel K. This is due to M being produced by a **convolution** with the kernel K in the **numerator**. The location of M-peak is equal to the sum of the locations of the S-peak and K-peak.
+
+-   The recovered signal D is **shifted backwards** relative to the peak in the measure M. This is due to offset peak in K and K being in the **denominator** of the **(de)convolution**. The location of D-peak is equal to the location of M-peak less the location of K-peak.
 
 -   We see in the spectrum of D some high-frequency energy. This arises from a combination of floating point errors and dividing by small values of K in the deconvolution. Later, we will address this with a **filter** below.
 
 
-<a id="org78409ef"></a>
+<a id="orgca953fc"></a>
 
 # Unmatched convolution and deconvolution
 
-Now consider a measure M that is not produced by a convolution of signal S with kernel K and deconvolved with matched kernel K. The demo simulates this simply by generating the measure directly as a Gaussian waveform.
+Now consider a measure M that that is **not** formed as a convolution S\*K but is still deconvolved with K. The demo shows this by forming M directly as a Gaussian shape<sup><a id="fnr.twok" class="footref" href="#fn.twok" role="doc-backlink">1</a></sup>.
 
 ```sh
 uv run decondemo plot --signal-is-measure --output basic-decon.svg
 ```
 
-<div class="html" id="org12638eb">
+<div class="html" id="org9e635f7">
 
-<div id="org6613542" class="figure">
+<div id="org78a28a5" class="figure">
 <p><img src="basic-decon.svg" alt="basic-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
 
 </div>
 
-Like in the matched kernel case, the recovered signal D = M/K is shifted back in tme relative to the measure M due to the kernel K being offset from zero. The main difference we see is D gains high-frequency wiggles. This is due to the kernel K not matching what (unknown) kernel was used to produce the measure M. Specifically, since M is a simple Gaussian it has a single Gaussian spectrum unlike the matched case where we see M has two Gaussians in the spectrum and the K part is thus almost perfectly divided out.
+Things to note
 
-This unmatched case is analogous to the full WCT deconvolution where the deconvolution kernel does not match the convolution kernel, be that applied in simulation or in nature.
+-   As in the matched-kernel demo, the recovered signal D = M/K is **shifted backward** in relative to the measure M.
+
+-   D gains high-frequency "wiggles". They are due to the kernel K not matching the (unknown) kernel used to produce the measure M. Specifically, since M here is constructed as a simple Gaussian waveform it has a single Gaussian spectrum whereas in the previous matched-kernel case we can clearly see two Gaussian shapes in that M-spectrum. Below we will address this with a **filter**.
 
 
-<a id="orgc344161"></a>
+<a id="org2741822"></a>
 
 # Shifts and cycles
 
-A convolution, in a sense, smears out a signal S by the kernel K. Both arrays must be "padded" to a size that is the sum of each minus one. The "smearing" past the end of S is then placed in the padded region. If the convolution is performed in the original array size, say that of S, this "smearing" will wrap around the end of the array and add onto the beginning of the array causing **cyclic artifacts**. The padding avoid these but the result is subject to the fact that the (padded) convolution is still cyclic.
+A (de)convolution smears each sample in the input signal over a region of size Nk as governed by the content of the kernel K. The linear shape padding receives information from samples size Nk from the end of the signal. Without this padding, that information would wrap around and add to the information from the start of the input signal causing **cyclic artifacts**.
 
-When the kernel as a peak that is away from the first sample, the "smearing" effectively has a "shift" as well. When that kernel is convolutional, the shift is in the positive direction (larger sample number). When deconvolutional, the shift is in the opposite direction toward smaller sample number.
+When the kernel has a peak that is away from its first sample, the "smearing" is biased and an apparent "shift" is induced. Peaks in the input signal appear **later in the convolution** result and **earlier in the deconvolution** result.
 
-Padding is generally applied to the end of arrays. Convolution with a kernel that has a peak away from zero will then move signal features toward the end of the padded result. This looks natural. However, in a deconvolution, a kernel peak may be displaced further away from zero than any input measure peak. This will result in the peak in D to be shifted so far to lower samples that it wraps around and shows up at the "end" of the array.
+In the case of deconvolution, this K-peak may be further from the zero sample than is the input M-peak. The resulting D-peak will be shifted so far forward that it will **wrap around** and appear at **later in the deconvolution**. Interpreting this as "later" is an error. In fact the last Nk samples in D are **earlier** than the start of M.
 
-The demo can show this by adjusting the location of the kernel:
+The demo can show this by adjusting the location of the kernel to be later:
 
 ```sh
 uv run decondemo plot --kernel-size=100 --kernel-mean=90 --signal-is-measure --output basic-decon-shift.svg
 ```
 
-<div class="html" id="org3b989c5">
+<div class="html" id="org6a3d11b">
 
-<div id="orge72fdc8" class="figure">
+<div id="orgfab9ab6" class="figure">
 <p><img src="basic-decon-shift.svg" alt="basic-decon-shift.svg" class="org-svg" width="80%" />
 </p>
 </div>
 
 </div>
 
-As we showed above, deconvolution with kernel K should shift the recovered signal D "backwards in time". However, here, it appears to have shifted "forward in time". In fact, the shift is so far backwards that the peak cycles around from the front to the back of the D array. The amount of the apparent shift depends on the content of the kernel, ie where it is peaked. However, one can think of deconvolving measure M with kernel K of size Nk as producing recovered signal D where the last Nk samples correspond to "negative time" before the time of the first sample of M. One can **roll** the result D so that these "negative time" samples precede the start time of M.
+One must take care to properly interpret the last Nk samples of D. The "end" of D is really at sample Nm=Nd-Nk-1, where Nm here is the original, pre-padded size of input M. It is possible to **roll** D by Nk to move these early time samples to the front of the array. One must then take care to interpret the rolled-D as starting Nk samples earlier in time than the original input M.
 
 
-<a id="org6c50090"></a>
+<a id="org52a6562"></a>
 
 # Filtered case
 
-In order to combat deconvolution artifacts (and later noise) we may apply an arbitrary filter as part of the deconvolution to form D = M\*F/K.
+In order to combat deconvolution artifacts (and later noise) we may apply an arbitrary filter as part of the deconvolution to form D = F(M/K). See previous discussion of the nature of F w.r.t. padding.
 
 The filter will distort the recovered signal D. We attempt to craft the filter to provide desirable distortion while minimizing unwanted distortion. In practice this needs a careful optimization. Here is one example.
 
@@ -140,9 +191,9 @@ The filter will distort the recovered signal D. We attempt to craft the filter t
 uv run decondemo plot --signal-is-measure --filter-name=lowpass --filter-scale=0.1  --output basic-filtered-decon.svg
 ```
 
-<div class="html" id="org99e068c">
+<div class="html" id="orgdd184f8">
 
-<div id="orge61e1db" class="figure">
+<div id="orgc791cb8" class="figure">
 <p><img src="basic-filtered-decon.svg" alt="basic-filtered-decon.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -154,19 +205,19 @@ This inserts the filter F waveform and spectrum. The chosen filter is a "low-pas
 Note the filter waveform is cyclically symmetric about the zero interval sample. This is a result of the filter being symmetrically defined in Fourier space as a real valued sampling. This is good for as because it is effectively convolved with the measure M and we do not want it to introduce any artificial shifts.
 
 
-<a id="org557e76f"></a>
+<a id="org472d360"></a>
 
 # Adding noise
 
-Real signals always come with noise. The demo has a simple white noise model. We go back to the ideal matched case and add the smallest of noise and that it utterly destroys the ability to recover the signal.
+Real signals always come with noise. The demo has a simple white noise model. We go back to the ideal matched case and add the smallest of noise and see that it utterly destroys the ability to recover the signal.
 
 ```sh
 uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
 ```
 
-<div class="html" id="orgc667565">
+<div class="html" id="org4c47fe0">
 
-<div id="org82de3f5" class="figure">
+<div id="org9f745a2" class="figure">
 <p><img src="basic-convo-decon-noisyq.svg" alt="basic-convo-decon-noisyq.svg" class="org-svg" width="80%" />
 </p>
 </div>
@@ -176,23 +227,27 @@ uv run decondemo plot --noise-rms=0.01 --output basic-convo-decon-noisyq.svg
 In fact, one may rerun the demo with noise that is too small to be visible in the measured waveform M and the D waveform is still unrecognizable as signal. Matters become even more hopeless when the convolution and deconvolution kernels are not matched.
 
 
-<a id="org49e6816"></a>
+<a id="org163528b"></a>
 
 # Noise filters
 
-The origin of the noise problem is similar to that of floating point errors but much larger. The high frequency power from the noise is amplified by the division of small values of K. As with FP errors, we may apply a low-pass filter to combat the amplified HF noise. However, the filter must be more aggressive.
+The effect of adding noise problem is similar to that of the floating point errors but much larger. In both cases, high frequency energy that is amplified by the division of small values of K. As with FP errors, we may apply a low-pass filter to combat the amplified HF noise. However, the filter must be more aggressive as the noise spectrum spans not just a small high-frquency region.
 
 ```sh
 uv run decondemo plot --noise-rms 0.1 --filter-name=lowpass --filter-scale=0.1 --filter-power=3.0 --output basic-convo-decon-noise-filter.svg
 ```
 
-<div class="html" id="org6d08d94">
+<div class="html" id="org3464aff">
 
-<div id="org663dfa5" class="figure">
+<div id="org570007e" class="figure">
 <p><img src="basic-convo-decon-noise-filter.svg" alt="basic-convo-decon-noise-filter.svg" class="org-svg" width="80%" />
 </p>
 </div>
 
 </div>
 
-Note, the noise has been increased by an order of magnitude to give the filter a greater challenge and we also use matched convolution and deconvolution kernels to focus on noise and filtering. The signal is recovered reasonably well though clearly the effect of noise can be seen.
+Note, the noise has been increased by an order of magnitude to give the filter a greater challenge and yet the signal is recovered reasonably well. The main peak is above the residual (unfiltered) noise and noise appears to have distorted the main peak away from its True Gaussian shape
+
+## Footnotes
+
+<sup><a id="fn.1" class="footnum" href="#fnr.1">1</a></sup> A better demo would allow for the more realistic case where different kernels are used for convolution and deconvolution.
