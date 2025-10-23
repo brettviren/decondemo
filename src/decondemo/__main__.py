@@ -168,6 +168,11 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
             attr={'name': 'decon', 'title': 'Deconvolved Result'}
         ))
 
+    if (filter_name is not "none"):
+        arrays.insert(-1, DataAttr(
+            data=np.fft.fft(filt_func(decon_result.shape[0])).real,
+            attr=dict(name='filter', title='Frequency Filter')))
+
     plots.plotn(arrays, output_path=output)
 
 if __name__ == '__main__':
