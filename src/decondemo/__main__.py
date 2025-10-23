@@ -4,6 +4,7 @@ import numpy as np
 from . import signals
 from . import decon
 from . import plots
+from .plots import DataAttr
 
 @click.group(context_settings=dict(show_default = True,
                                    help_option_names=['-h', '--help']))
@@ -75,12 +76,59 @@ def gaussian(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, k
     click.echo(f"Windowing Used: {window_info}")
     click.echo(f"------------------")
 
-    # 5. Plot Results
-    # We plot signal_true, kernel, and decon_result for comparison.
+    # 5. Prepare DataAttr objects and Plot Results
+    
+    arrays = []
+    
     if signal_is_measure:
-        plots.plot3(signal_true, kernel, decon_result, output_path=output)
+        # Case 1: Plot 3 arrays (Measure, Kernel, Decon)
+        
+        # 1. Measure (signal_true is used as measure)
+        arrays.append(DataAttr(
+            data=signal_true, 
+            attr={'name': 'measure', 'title': 'Measure'}
+        ))
+        
+        # 2. Kernel
+        arrays.append(DataAttr(
+            data=kernel, 
+            attr={'name': 'kernel', 'title': 'Kernel'}
+        ))
+        
+        # 3. Deconvolved Result
+        arrays.append(DataAttr(
+            data=decon_result, 
+            attr={'name': 'decon', 'title': 'Deconvolved Result'}
+        ))
+        
     else:
-        plots.plot4(signal_true, kernel, signal_measured, decon_result, output_path=output)
+        # Case 2: Plot 4 arrays (True Signal, Kernel, Measured Signal, Decon)
+        
+        # 1. True Signal
+        arrays.append(DataAttr(
+            data=signal_true, 
+            attr={'name': 'signal_true', 'title': 'True Signal (Input)'}
+        ))
+        
+        # 2. Kernel
+        arrays.append(DataAttr(
+            data=kernel, 
+            attr={'name': 'kernel', 'title': 'Kernel (PSF)'}
+        ))
+        
+        # 3. Measured Signal
+        arrays.append(DataAttr(
+            data=signal_measured, 
+            attr={'name': 'signal_measured', 'title': 'Measured Signal (Convolution)'}
+        ))
+        
+        # 4. Deconvolved Result
+        arrays.append(DataAttr(
+            data=decon_result, 
+            attr={'name': 'decon', 'title': 'Deconvolved Result'}
+        ))
+
+    plots.plotn(arrays, output_path=output)
 
 if __name__ == '__main__':
     cli()
