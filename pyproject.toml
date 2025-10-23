@@ -12,7 +12,7 @@ dependencies = [
 authors = [
     { name = "Brett Viren", email = "brett.viren@gmail.com" }
 ]
-readme = {file = "README.org", content-type = "text/org"}
+readme = "README.md"
 
 [build-system]
 requires = ["setuptools>=61"]
