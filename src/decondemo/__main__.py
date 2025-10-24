@@ -6,8 +6,9 @@ import numpy as np
 from . import signals
 from . import decon
 from . import plots
-from .util import DataAttr
-from .filters import Filter, Lowpass, Highpass # Import filter classes
+from .util import DataAttr, linear_size, zero_pad
+from .filters import Filter, Lowpass, Highpass
+from .filters import taper_function
 
 @click.group(context_settings=dict(show_default = True,
                                    help_option_names=['-h', '--help']))
@@ -24,8 +25,9 @@ def cli():
 @click.option('--kernel-size', type=int, default=21, help='Size of the kernel array.')
 @click.option('--kernel-mean', type=float, default=10.0, help='Mean position of the kernel Gaussian.')
 @click.option('--kernel-sigma', type=float, default=2.0, help='Sigma (width) of the kernel Gaussian.')
-@click.option('--window', type=click.Choice(['none', 'hann', 'hamming', 'blackman']), default='none', help='Window function to apply for tapering before padding.')
-@click.option('--taper-length', type=int, default=10, help='Length of the window taper applied to the ends of the signal/kernel.')
+@click.option('--taper-name', type=click.Choice(['none', 'hann', 'hamming', 'blackman', 'bartlett', 'triangle', 'exponential', 'gauss', 'sine', 'linear']), default='none', help='Taper function to apply, none produces abrupt zero-padding.')
+@click.option('--taper-length', type=int, default=10, help='Length of the taper.')
+@click.option('--taper-signal', default=False, is_flag=True, help='If set, tapering is applied as a windowing of a signal, else (default) tapering is an extrapolation into the ends of a padded region.')
 @click.option('--signal-is-measure', default=False, is_flag=True, 
               help='The generated signal is interpreted as the measure instead of forming measure via convolution of signal with kernel')
 @click.option('--noise-rms', type=float, default=0.0, help='RMS value of white noise to add to the measured signal or measure.')
@@ -33,13 +35,17 @@ def cli():
 @click.option('--filter-scale', type=float, default=1.0, help='Scale parameter for the filter (e.g., cutoff frequency).')
 @click.option('--filter-power', type=float, default=2.0, help='Power parameter for the filter steepness.')
 @click.option('--filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the filter to zero.')
+@click.option('--show-padded', default=False, is_flag=True, help='If set, show padded versions of signals instead of natural sizes.')
+@click.option('--waveform-logy', default=False, is_flag=True, help='If set, show waveforms in log scale.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
-def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, window, taper_length, signal_is_measure, noise_rms, filter_name, filter_scale, filter_power, filter_ignore_baseline, output):
+def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kernel_sigma, taper_name, taper_length, taper_signal, signal_is_measure, noise_rms, filter_name, filter_scale, filter_power, filter_ignore_baseline, show_padded, waveform_logy, output):
     """
-    Perform both convolution and deconvolution of a Gaussian true signal and a Gaussian kernel. 
+    Illustrate various (de)convolutions using Gaussian signal and kernel and plot the results.
     """
+
+    # We may call this command from org source blocks and want idempotent quick-exit behavior.
     if output and os.path.exists(output):
-        sys.stderr.write(f'file exists, remove to remake: {output}\n')
+        # sys.stderr.write(f'file exists, remove to remake: {output}\n')
         sys.stdout.write(output)
         sys.stdout.flush()
         return
@@ -76,19 +82,16 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
         noise_target = "None"
     
     # 3. Determine Padding Function
-    if window == 'none':
-        pad_func = decon.zero_pad
-        window_info = "None (Zero Padding)"
-    elif window == 'hann':
-        pad_func = decon.Hann(taper_length)
-        window_info = f"Hann (Taper Length: {taper_length})"
-    elif window == 'hamming':
-        pad_func = decon.Hamming(taper_length)
-        window_info = f"Hamming (Taper Length: {taper_length})"
-    elif window == 'blackman':
-        pad_func = decon.Blackman(taper_length)
-        window_info = f"Blackman (Taper Length: {taper_length})"
-    
+    pad_func = taper_function(taper_name, taper_length, taper_signal)
+
+    # Padding happens inside decon().  In order to see the padded waveform and
+    # spectrum, we may optionally pad the arrays here prior to adding them to
+    # the list of arrays to plot.
+    def maybe_pad(array, size):
+        if show_padded:
+            return pad_func(array, size)
+        return array
+
     # 4. Determine Filter Function
     filter_params = {
         'scale': filter_scale,
@@ -111,24 +114,27 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
         decon_result = decon.decon_pad(signal_measured, kernel, pad_func, filt_func=filt_func)
     except ValueError as e:
         click.echo(f"Error during deconvolution: {e}", err=True)
+        raise
         return
 
     # 6. Prepare DataAttr objects and Plot Results
     
     arrays = []
-    
+
     if signal_is_measure:
         # Case 1: Plot 3 arrays (Measure, Kernel, Decon)
         
+        size_decon = linear_size(signal_measured, kernel)
+
         # 1. Measure (signal_measured now holds the potentially noisy measure)
         arrays.append(DataAttr(
-            data=signal_measured, 
+            data=maybe_pad(signal_measured, size_decon), 
             attr={'name': 'measure', 'title': 'Measure' + (' + Noise' if noise_rms > 0 else '')}
         ))
         
         # 2. Kernel
         arrays.append(DataAttr(
-            data=kernel, 
+            data=maybe_pad(kernel, size_decon), 
             attr={'name': 'kernel', 'title': 'Kernel'}
         ))
         
@@ -141,24 +147,32 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
     else:
         # Case 2: Plot 4 arrays (True Signal, Kernel, Measured Signal, Decon)
         
+        size_convo = linear_size(signal_true, kernel)
+        size_decon = linear_size(size_convo, kernel)
+
         # 1. True Signal
         arrays.append(DataAttr(
-            data=signal_true, 
+            data=maybe_pad(signal_true, size_convo), 
             attr={'name': 'signal_true', 'title': 'True Signal (Input)'}
         ))
         
         # 2. Kernel
         arrays.append(DataAttr(
-            data=kernel, 
-            attr={'name': 'kernel', 'title': 'Kernel (PSF)'}
+            data=maybe_pad(kernel, size_convo), 
+            attr={'name': 'convo_kernel', 'title': 'Convolution Kernel'}
         ))
         
         # 3. Measured Signal (signal_measured now holds the potentially noisy convolution)
         arrays.append(DataAttr(
-            data=signal_measured, 
+            data=maybe_pad(signal_measured, size_decon), 
             attr={'name': 'signal_measured', 'title': 'Measured Signal (Convolution)' + (' + Noise' if noise_rms > 0 else '')}
         ))
         
+        arrays.append(DataAttr(
+            data=maybe_pad(kernel, size_decon), 
+            attr={'name': 'decon_kernel', 'title': 'Deconvolution Kernel'}
+        ))
+
         # 4. Deconvolved Result
         arrays.append(DataAttr(
             data=decon_result, 
@@ -167,10 +181,10 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
 
     if filter_name != "none":
         arrays.insert(-1, DataAttr(
-            data=np.fft.fft(filt_func(decon_result.shape[0])).real,
+            data=maybe_pad(np.fft.fft(filt_func(decon_result.shape[0])).real, size_decon),
             attr=dict(name='filter', title='Frequency Filter')))
 
-    plots.plotn(arrays, output_path=output)
+    plots.plotn(arrays, output_path=output, waveform_logy=waveform_logy)
     if output:
         sys.stdout.write(output)
         sys.stdout.flush()

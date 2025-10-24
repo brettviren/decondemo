@@ -1,6 +1,25 @@
 import numpy as np
 from typing import Dict, Any
 
+def linear_size(a, b):
+    if isinstance(a, np.ndarray):
+        a = a.shape[0]
+    if isinstance(b, np.ndarray):
+        b = b.shape[0]
+    return a+b-1
+
+def zero_pad(array: np.ndarray, size: int) -> np.ndarray:
+    """
+    Pads an array with zeros up to the specified size.
+    """
+    if size < len(array):
+        raise ValueError("Target size must be greater than or equal to array length.")
+    
+    padded_array = np.zeros(size, dtype=array.dtype)
+    padded_array[:len(array)] = array
+    return padded_array
+
+
 def nhalf(N):
     '''
     Return the number of "positive" frequency samples in a sampling of size N.

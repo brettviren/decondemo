@@ -103,7 +103,7 @@ def plot4(signal_true: Sequence[float], kernel: Sequence[float], signal_measured
         plt.show()
 
 
-def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
+def plotn(arrays: List[DataAttr], output_path: Optional[str] = None, waveform_logy=False):
     """
     Plots N arrays (wrapped in DataAttr objects) in an N x 3 grid, 
     showing the array values, the magnitude of its Fourier Transform, 
@@ -149,6 +149,8 @@ def plotn(arrays: List[DataAttr], output_path: Optional[str] = None):
         ax1.step(np.arange(L), array, where='mid')
         ax1.set_title(f"{title} - interval")
         ax1.grid(True)
+        if waveform_logy:
+            ax1.set_yscale('log')
         if i == N - 1:
             ax1.set_xlabel('Sample Index')
 

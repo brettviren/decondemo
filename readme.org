@@ -3,26 +3,14 @@
 #+options: toc:t
 #+PROPERTY: header-args:sh :results file graphics :exports both :dir . :wrap "html\n#+ATTR_HTML: :width 80%"
 
-* Goals and getting started
-
-Goals are to illustrate:
-
-- [X] basic convolution and deconvolution
-- [X] deconvolution shifts
-- [X] floating point errors
-- [X] filters for FP errors
-- [X] effects of noise
-- [X] filters for noise
-- [ ] spectral leakage
-- [ ] mitigation with window / tapering functions
-- [ ] mitigation with extrapolation
+* Getting started
 
 #+begin_example
 $ uv tool install git+https://github.com/brettviren/decondemo
 $ decondemo --help
 #+end_example
 
-* Demo terms and overview
+* Demo overview
 
 Below we go through the demo in a series of steps.  Each step gives a command
 line to run, its output plot and some discussion.
@@ -288,12 +276,71 @@ distorted the main peak away from its True Gaussian shape
 
 * Spectral leakage
 
-tbd
+The term *spectral leakage* generally refers to the fact that an operation on a
+*waveform* causes a change to its *spectrum*.  Given that the waveform and spectrum
+representation of a signal are perfectly symmetric through the DFT, this
+co-change is not profound.  Yet, some changes to a waveform produce surprising
+changes to the spectrum.
+
+Introduced above is the requirement to pad signal and kernel for convolution or
+measure and kernel for deconvolution to the mutual *linear size* in order to avoid
+cyclic artifacts.  Typically the padded region values are zero.  This adds no
+energy to the signal.  However, it will cause strong spectral leakage distortion
+when the end of the unpadded arrays have not reached zero value.  This can be
+illustrated by modifying the case of the [[Unmatched convolution and deconvolution][unmatched kernel demo]] such that the
+high tail of the measure is truncated.
+
+#+begin_src sh
+uv run decondemo plot  --signal-is-measure --signal-size=50 --output basic-decon-trunc.svg
+#+end_src
+
+#+RESULTS:
+#+begin_html
+#+ATTR_HTML: :width 80%
+[[file:basic-decon-trunc.svg]]
+#+end_html
+
+Note, this truncation cuts off the tail which is already very close to zero yet
+it introduces four orders of magnitude more high-frequency energy to the
+measure's spectrum.  This is the spectral leakage.  And, because the DFT
+conserves energy, this high-frequency energy must be taken from low energy
+region.  That low-frequency loss is not significant.  But, what is significant
+is that the amplification of this new high-frequency energy in the deconvolution
+completely destroys the recovered signal D.
 
 * Mitigation with tapering 
 
-tbd
+Spectral leakage due to the discontinuity introduced by zero padding can be
+mitigated by applying a *tapering* or *window* function to the input array (measure
+M in the example above).  This *destroys information* at the ends of the waveform
+by multiplying a function that falls to zero.  The demo can apply some well
+known tapering function forms, for example:
+
+#+begin_src sh
+  uv run decondemo plot --show-padded \
+     --signal-is-measure --signal-size=50 \
+     --taper-signal --taper-name=hann --taper-length=20 \
+     --output basic-decon-trunc-taper.svg
+#+end_src
+
+#+RESULTS:
+#+begin_html
+#+ATTR_HTML: :width 80%
+[[file:basic-decon-trunc-taper.svg]]
+#+end_html
+
+As with filters, optimizing the tapering function requires a careful tuning and
+evaluation.  Indeed, tapering functions are essentially equivalent to filters
+except the former operate in interval-space while the latter operate in
+Fourier-space.  Both destroy information in an attempt to produce a desirable bias.
+
 
 * Mitigation with extrapolation
 
-tbd
+An extrapolation function is in a sense the opposite of a tapering function.
+Instead of destroying information at the ends of a measure, it invents
+information at the ends of the padded region.  Both have the same goal to bring
+the waveform smoothly to zero to mitigate unwanted spectral leakage.  There is
+support in the demo however I have been unable to hit upon an extrapolation
+model that will provide any benefit.
+
