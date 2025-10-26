@@ -212,12 +212,13 @@ class PostOverlap:
             
             if self.chunk_size is None:
                 self.chunk_size = chunk.size
+                print(f'taking chunk size from first input of: {chunk.size}')
 
             enlarged = self.func(chunk)
 
             # Add accrued overlap taking care that it may be smaller or larger
             # than the chunk size
-            add_size = min(save.size, self.chunk_size)
+            add_size = np.min(save.size, self.chunk_size)
             enlarged[:add_size] += save[:add_size]
 
             # Makes either zero size or pops one chunk worth
