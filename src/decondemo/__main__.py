@@ -11,6 +11,10 @@ from . import plots
 from .util import DataAttr, linear_size
 from .filters import Filter, Lowpass, Highpass
 from .filters import taper_function
+from .chunked import (
+    TimeSource, ExpoTime, UniformTime, Latch,
+    ConvoFunc, PostOverlap, PreOverlap
+)
 
 @click.group(context_settings=dict(show_default = True,
                                    help_option_names=['-h', '--help']))
@@ -19,6 +23,153 @@ def cli():
     Deconvolution Demo Package CLI
     """
     pass
+
+def _get_filter_func(name, scale, power, ignore_baseline):
+    filter_params = {
+        'scale': scale,
+        'power': power,
+        'ignore_baseline': ignore_baseline
+    }
+    if name == 'none':
+        return Filter(**filter_params)
+    elif name == 'lowpass':
+        return Lowpass(**filter_params)
+    elif name == 'highpass':
+        return Highpass(**filter_params)
+    else:
+        # Should be unreachable due to click.Choice validation
+        raise ValueError(f"Unknown filter name: {name}")
+
+def _get_pad_func(taper_name, taper_length, taper_signal):
+    # taper_function handles mapping names like 'hann' to the correct callable
+    return taper_function(taper_name, taper_length, taper_signal)
+
+def _get_kernel(size, mean, sigma):
+    kernel = signals.gaussian(size=size, mean=mean, sigma=sigma)
+    # Normalize kernel (PSF)
+    if np.sum(kernel) != 0:
+        kernel /= np.sum(kernel)
+    return kernel
+
+
+@cli.command()
+@click.option('--chunks', type=int, default=10, help='Number of chunks/time steps to generate (limit for TimeSource).')
+@click.option('--rate', type=float, default=1.0, help='Rate parameter for time distribution.')
+@click.option('--time-distribution', type=click.Choice(['expo', 'uniform']), default='expo', help='Time step distribution.')
+@click.option('--sample-period', type=float, default=1.0, help='Sample period for Latch.')
+@click.option('--start-time', type=float, default=0.0, help='Start time for Latch.')
+@click.option('--chunk-size', type=int, default=100, help='Chunk size for Latch and Overlap nodes.')
+# CONVO PARAMETERS
+@click.option('--convo-kernel-size', type=int, default=21, help='Size of the convolution kernel array.')
+@click.option('--convo-kernel-mean', type=float, default=10.0, help='Mean position of the convolution kernel Gaussian.')
+@click.option('--convo-kernel-sigma', type=float, default=2.0, help='Sigma (width) of the convolution kernel Gaussian.')
+@click.option('--convo-taper-name', type=click.Choice(['none', 'hann', 'hamming', 'blackman', 'bartlett', 'triangle', 'exponential', 'gauss', 'sine', 'linear']), default='none', help='Taper function for convolution padding.')
+@click.option('--convo-taper-length', type=int, default=10, help='Length of the convolution taper.')
+@click.option('--convo-taper-signal', default=False, is_flag=True, help='If set, convolution tapering is applied as a windowing of a signal, else (default) tapering is an extrapolation.')
+@click.option('--convo-filter-name', type=click.Choice(['none', 'lowpass', 'highpass']), default='none', help='Type of frequency-space filter to apply during convolution.')
+@click.option('--convo-filter-scale', type=float, default=1.0, help='Scale parameter for the convolution filter.')
+@click.option('--convo-filter-power', type=float, default=2.0, help='Power parameter for the convolution filter steepness.')
+@click.option('--convo-filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the convolution filter to zero.')
+# DECON PARAMETERS
+@click.option('--decon-kernel-size', type=int, default=21, help='Size of the deconvolution kernel array.')
+@click.option('--decon-kernel-mean', type=float, default=10.0, help='Mean position of the deconvolution kernel Gaussian.')
+@click.option('--decon-kernel-sigma', type=float, default=2.0, help='Sigma (width) of the deconvolution kernel Gaussian.')
+@click.option('--decon-taper-name', type=click.Choice(['none', 'hann', 'hamming', 'blackman', 'bartlett', 'triangle', 'exponential', 'gauss', 'sine', 'linear']), default='none', help='Taper function for deconvolution padding.')
+@click.option('--decon-taper-length', type=int, default=10, help='Length of the deconvolution taper.')
+@click.option('--decon-taper-signal', default=False, is_flag=True, help='If set, deconvolution tapering is applied as a windowing of a signal, else (default) tapering is an extrapolation.')
+@click.option('--decon-filter-name', type=click.Choice(['none', 'lowpass', 'highpass']), default='lowpass', help='Type of frequency-space filter to apply during deconvolution.')
+@click.option('--decon-filter-scale', type=float, default=0.1, help='Scale parameter for the deconvolution filter.')
+@click.option('--decon-filter-power', type=float, default=3.0, help='Power parameter for the deconvolution filter steepness.')
+@click.option('--decon-filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the deconvolution filter to zero.')
+@click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
+def chunked(
+    chunks, rate, time_distribution, sample_period, start_time, chunk_size,
+    convo_kernel_size, convo_kernel_mean, convo_kernel_sigma,
+    convo_taper_name, convo_taper_length, convo_taper_signal,
+    convo_filter_name, convo_filter_scale, convo_filter_power, convo_filter_ignore_baseline,
+    decon_kernel_size, decon_kernel_mean, decon_kernel_sigma,
+    decon_taper_name, decon_taper_length, decon_taper_signal,
+    decon_filter_name, decon_filter_scale, decon_filter_power, decon_filter_ignore_baseline,
+    output
+):
+    """
+    Runs a streaming chunked processing pipeline: TimeSource -> Latch -> Convo -> Decon.
+    """
+    
+    # 1. Time Source Setup
+    if time_distribution == 'expo':
+        step = ExpoTime(rate=rate)
+    else:
+        step = UniformTime(rate=rate)
+        
+    time_source = TimeSource(step=step, start=start_time, limit=chunks)
+    
+    # 2. Latch Setup
+    latch = Latch(sample_period=sample_period, chunk_size=chunk_size, start_time=start_time)
+    
+    # 3. Convo Setup (PostOverlap)
+    convo_kernel = _get_kernel(convo_kernel_size, convo_kernel_mean, convo_kernel_sigma)
+    convo_pad_func = _get_pad_func(convo_taper_name, convo_taper_length, convo_taper_signal)
+    convo_filt_func = _get_filter_func(convo_filter_name, convo_filter_scale, convo_filter_power, convo_filter_ignore_baseline)
+    
+    convo_func_obj = ConvoFunc(
+        kernel=convo_kernel,
+        pad_func=convo_pad_func,
+        filt_func=convo_filt_func,
+        invert=False
+    )
+    post_overlap = PostOverlap(transform=convo_func_obj, chunk_size=chunk_size)
+    
+    # 4. Decon Setup (PreOverlap)
+    decon_kernel = _get_kernel(decon_kernel_size, decon_kernel_mean, decon_kernel_sigma)
+    decon_pad_func = _get_pad_func(decon_taper_name, decon_taper_length, decon_taper_signal)
+    decon_filt_func = _get_filter_func(decon_filter_name, decon_filter_scale, decon_filter_power, decon_filter_ignore_baseline)
+    
+    decon_func_obj = ConvoFunc(
+        kernel=decon_kernel,
+        pad_func=decon_pad_func,
+        filt_func=decon_filt_func,
+        invert=True
+    )
+    pre_overlap = PreOverlap(transform=decon_func_obj, chunk_size=chunk_size)
+    
+    # 5. Pipeline Execution
+    
+    # TimeSource -> Latch (Impulse train)
+    impulse_train_source = latch(time_source())
+    
+    # Latch -> PostOverlap (Convolution)
+    convolved_source = post_overlap(impulse_train_source)
+    
+    # PostOverlap -> PreOverlap (Deconvolution)
+    deconvolved_results = pre_overlap(convolved_source)
+    
+    # 6. Collect results
+    results = list(deconvolved_results)
+    
+    # 7. Plotting/Output (Minimal implementation)
+    
+    if not results:
+        click.echo("Pipeline produced no output chunks.", err=True)
+        return
+
+    final_output = np.concatenate(results)
+    
+    arrays = [
+        DataAttr(
+            data=final_output,
+            attr={'name': 'decon_output', 'title': f'Deconvolved Output ({len(results)} chunks)'}
+        )
+    ]
+    
+    plots.plotn(arrays, output_path=output, waveform_logy=False)
+    
+    if output:
+        sys.stdout.write(output)
+        sys.stdout.flush()
+    
+    click.echo(f"Successfully processed {chunks} time steps into {len(results)} output chunks.")
+
 
 @cli.command()
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
