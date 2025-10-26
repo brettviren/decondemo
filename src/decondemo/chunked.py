@@ -21,6 +21,7 @@ All nodes are instances of a callable class.  The call method will yield
 results.  The graph is composed through calls to the callable method.
 
 '''
+import random
 
 
 class TimeSource:
@@ -29,5 +30,8 @@ class TimeSource:
         self.rate = rate
 
     def __call__(self):
-        pass
+        while True:
+            dt = random.expovariate(self.rate)
+            self.now += dt
+            yield self.now
     
