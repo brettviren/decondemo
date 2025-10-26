@@ -156,6 +156,8 @@ def chunked(
     # 6. Collect results (Consumes the generator, filling decon_chunks)
     list(deconvolved_results)
     
+    print(f'{len(latch_chunks)} latched, {len(convo_chunks)} convos, {len(decon_chunks)} decons')
+
     # 7. Plotting/Output
     
     if not decon_chunks:
