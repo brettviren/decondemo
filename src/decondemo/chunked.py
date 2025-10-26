@@ -200,7 +200,7 @@ class PostOverlap:
         When the transform is a tail-padded convolution, this implements the
         "overlap-add" method.
         '''
-        self.transform = enlarge
+        self.transform = transform
         self.chunk_size = chunk_size
 
     def __call__(self, chunk_source):
@@ -255,7 +255,7 @@ class PreOverlap:
         When the transform is a head-padded deconvolution, this implements the
         equivalent to "overlap-add convolution".
         '''
-        self.transform = enlarge
+        self.transform = transform
         self.chunk_size = chunk_size
 
     def __call__(self, chunk_source):
@@ -272,18 +272,29 @@ class PreOverlap:
                 print(f'taking chunk size from first input of: {chunk.size}')
 
             enlarged = self.transform(chunk)
+            
+            # Calculate the size of the prepended overlap region
+            overlap_size = enlarged.size - self.chunk_size
+            
+            if overlap_size < 0:
+                 raise ValueError(f"Transform output size {enlarged.size} is smaller than expected chunk size {self.chunk_size}")
 
             if last is None:
-                # Prime the prior with just the non pre-padded part.
-                last = enlarged[-self.chunk:]
+                # Prime the prior (last) chunk with the non pre-padded part of the first result.
+                # This chunk is not yielded yet.
+                last = enlarged[overlap_size:]
                 continue
 
-            # For now, we will assume the enlargement is less than chunk size.
-            # If we allow larger enlargement (which is certainly possible), we'd
-            # need to keep enough "last" chunks as would span the enlargement.
-
-            add_size = chunk.size - self.chunk_size
-            last[-add_size:] += chunk[:add_size]
+            # Add the overlap (head of enlarged) to the tail of the previous chunk (last)
+            last[-overlap_size:] += enlarged[:overlap_size]
+            
             done = last
-            last = chunk[add_size:]
+            
+            # The new 'last' is the non-overlap part of the current enlarged chunk
+            last = enlarged[overlap_size:]
+            
             yield done
+            
+        # Yield the final buffered chunk
+        if last is not None:
+            yield last

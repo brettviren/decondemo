@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import random
-from decondemo.chunked import ExpoTime, UniformTime, TimeSource, Latch, ConvoFunc, PostOverlap
+from decondemo.chunked import ExpoTime, UniformTime, TimeSource, Latch, ConvoFunc, PostOverlap, PreOverlap
 
 # Fix random seed for deterministic testing of time generators
 random.seed(42)
@@ -296,7 +296,7 @@ def test_postoverlap_standard_flow():
         np.ones(CHUNK_SIZE, dtype=float) * 3,
     ]
     
-    po = PostOverlap(enlarge=mock_enlarge_standard, chunk_size=CHUNK_SIZE)
+    po = PostOverlap(transform=mock_enlarge_standard, chunk_size=CHUNK_SIZE)
     
     # Use MockTimeSource structure for chunk iteration
     chunk_source = MockTimeSource(chunk_data)
@@ -336,7 +336,7 @@ def test_postoverlap_initial_chunk_size_detection():
         np.ones(CHUNK_SIZE, dtype=float) * 2,
     ]
     
-    po = PostOverlap(enlarge=mock_enlarge_small, chunk_size=None)
+    po = PostOverlap(transform=mock_enlarge_small, chunk_size=None)
     chunk_source = MockTimeSource(chunk_data)
     
     it = po(chunk_source)
@@ -377,7 +377,7 @@ def test_postoverlap_non_standard_overlap_logic():
         np.ones(CHUNK_SIZE, dtype=float) * 3,
     ]
     
-    po = PostOverlap(enlarge=mock_enlarge_variable_tail, chunk_size=CHUNK_SIZE)
+    po = PostOverlap(transform=mock_enlarge_variable_tail, chunk_size=CHUNK_SIZE)
     chunk_source = MockTimeSource(chunk_data)
     results = list(po(chunk_source))
     
@@ -407,3 +407,111 @@ def test_postoverlap_non_standard_overlap_logic():
     # else: tail[:0] += []. save = tail = [80, 90, 100]
     expected_c3 = np.array([63, 73, 3.0, 3.0, 3.0])
     assert np.allclose(results[2], expected_c3)
+
+# --- Tests for PreOverlap ---
+
+# Mock function simulating deconvolution (prepends 3 elements)
+def mock_prepend_enlarge(chunk, overlap_size=3):
+    N = len(chunk)
+    # Ensure enlarged array is float dtype
+    enlarged = np.zeros(N + overlap_size, dtype=float)
+    
+    # Fill head (overlap region) with unique markers based on chunk index
+    idx = chunk[0] if chunk.size > 0 else 0.0
+    enlarged[:overlap_size] = [idx + 0.1, idx + 0.2, idx + 0.3]
+    
+    # Fill the rest with input values
+    enlarged[overlap_size:] = chunk
+    return enlarged
+
+def test_preoverlap_standard_flow():
+    # Chunk size 10. Overlap size 3. Input size 10. Enlarged size 13.
+    CHUNK_SIZE = 10
+    OVERLAP_SIZE = 3
+    
+    # Input chunks (size 10)
+    chunk_data = [
+        np.ones(CHUNK_SIZE, dtype=float) * 1, # C1
+        np.ones(CHUNK_SIZE, dtype=float) * 2, # C2
+        np.ones(CHUNK_SIZE, dtype=float) * 3, # C3
+    ]
+    
+    po = PreOverlap(transform=mock_prepend_enlarge, chunk_size=CHUNK_SIZE)
+    chunk_source = MockTimeSource(chunk_data)
+    
+    results = list(po(chunk_source))
+    
+    # C1: enlarged = [1.1, 1.2, 1.3, 1, 1, ..., 1] (size 13)
+    # last = [1, 1, ..., 1] (size 10). Nothing yielded.
+    
+    # C2: enlarged = [2.1, 2.2, 2.3, 2, 2, ..., 2] (size 13)
+    # overlap_size = 3.
+    # last[-3:] += enlarged[:3] => [1, 1, 1] += [2.1, 2.2, 2.3] => [3.1, 3.2, 3.3]
+    # done = last = [1, 1, 1, 1, 1, 1, 1, 3.1, 3.2, 3.3]
+    # new last = enlarged[3:] = [2, 2, ..., 2] (size 10)
+    expected_c1_output = np.array([1, 1, 1, 1, 1, 1, 1, 3.1, 3.2, 3.3])
+    
+    # C3: enlarged = [3.1, 3.2, 3.3, 3, 3, ..., 3] (size 13)
+    # overlap_size = 3.
+    # last[-3:] += enlarged[:3] => [2, 2, 2] += [3.1, 3.2, 3.3] => [5.1, 5.2, 5.3]
+    # done = last = [2, 2, 2, 2, 2, 2, 2, 5.1, 5.2, 5.3]
+    # new last = enlarged[3:] = [3, 3, ..., 3] (size 10)
+    expected_c2_output = np.array([2, 2, 2, 2, 2, 2, 2, 5.1, 5.2, 5.3])
+    
+    # Final yield: last = [3, 3, ..., 3] (size 10)
+    expected_c3_output = np.ones(CHUNK_SIZE) * 3
+    
+    assert len(results) == 3
+    assert np.allclose(results[0], expected_c1_output)
+    assert np.allclose(results[1], expected_c2_output)
+    assert np.allclose(results[2], expected_c3_output)
+
+def test_preoverlap_initial_chunk_size_detection():
+    CHUNK_SIZE = 5
+    OVERLAP_SIZE = 2
+    
+    def mock_prepend_small(chunk):
+        N = len(chunk)
+        enlarged = np.zeros(N + OVERLAP_SIZE, dtype=float)
+        enlarged[:OVERLAP_SIZE] = [10.0, 20.0]
+        enlarged[OVERLAP_SIZE:] = chunk
+        return enlarged
+
+    chunk_data = [
+        np.ones(CHUNK_SIZE, dtype=float) * 1,
+        np.ones(CHUNK_SIZE, dtype=float) * 2,
+    ]
+    
+    po = PreOverlap(transform=mock_prepend_small, chunk_size=None)
+    chunk_source = MockTimeSource(chunk_data)
+    
+    it = po(chunk_source)
+    
+    # Process C1 (primes 'last')
+    next(it)
+    
+    # Check that chunk_size was set based on the input chunk size (5)
+    assert po.chunk_size == CHUNK_SIZE
+    
+    # Process C2 (yields C1 output)
+    next(it)
+    
+    # Check that chunk_size remains 5
+    assert po.chunk_size == CHUNK_SIZE
+
+def test_preoverlap_error_on_shrinkage():
+    CHUNK_SIZE = 10
+    
+    def mock_shrink(chunk):
+        # Output size 8, smaller than chunk size 10
+        return np.ones(8, dtype=float)
+
+    chunk_data = [np.ones(CHUNK_SIZE, dtype=float) * 1]
+    po = PreOverlap(transform=mock_shrink, chunk_size=CHUNK_SIZE)
+    chunk_source = MockTimeSource(chunk_data)
+    
+    it = po(chunk_source)
+    
+    # Processing the first chunk should raise ValueError because overlap_size = 8 - 10 = -2
+    with pytest.raises(ValueError, match="Transform output size 8 is smaller than expected chunk size 10"):
+        list(it)
