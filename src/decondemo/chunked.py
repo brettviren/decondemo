@@ -184,29 +184,31 @@ class ConvoFunc:
 
 class PostOverlap:
     '''
-    A node that handles a transform that enlarges the size of a chunk.
+    A node that handles a transform that enlarges the size of a chunk by
+    appending samples.
     '''
-    def __init__(self, enlarge, chunk_size=None):
+    def __init__(self, transform, chunk_size=None):
         '''
-        Apply the enlarge callable to chunks.
+        Apply the transform callable to chunks.
 
         If given, chunk_size specifies the output chunk size.  Else, the size of
         the first chunk consumed will specify the output chunk size.
 
-        Any additional samples at the end of the enlarged array are held and
-        added to the start of the next enlarged array.
+        Any additional samples at the end of the transformed, enlarged array are
+        held and added to the start of the next enlarged array.
 
-        When the enlargement is a tail-padded convolution, this implements the
+        When the transform is a tail-padded convolution, this implements the
         "overlap-add" method.
         '''
-        self.func = enlarge
+        self.transform = enlarge
         self.chunk_size = chunk_size
 
     def __call__(self, chunk_source):
         '''
-        Emit convolved chunks.
+        Emit transformed chunks.
         '''
-        # This holds the tail for subsequent chunk
+        # This holds the tail of current chunk to be added to head of subsequent
+        # chunk.
         save = np.zeros((0,), dtype=float)
         for chunk in chunk_source:
             
@@ -214,11 +216,10 @@ class PostOverlap:
                 self.chunk_size = chunk.size
                 print(f'taking chunk size from first input of: {chunk.size}')
 
-            enlarged = self.func(chunk)
+            enlarged = self.transform(chunk)
 
             # Add accrued overlap taking care that it may be smaller or larger
             # than the chunk size
-            # FIX: Use built-in min() instead of np.min() which expects an array and an axis.
             add_size = min(save.size, self.chunk_size)
             enlarged[:add_size] += save[:add_size]
 
@@ -234,4 +235,55 @@ class PostOverlap:
                 tail[:save.size] += save
                 save = tail
 
+            yield done
+
+class PreOverlap:
+    '''
+    A node that handles a transform that enlarges the size of a chunk by
+    preppending samples.
+    '''
+    def __init__(self, transform, chunk_size=None):
+        '''
+        Apply the transform callable to chunks.
+
+        If given, chunk_size specifies the output chunk size.  Else, the size of
+        the first chunk consumed will specify the output chunk size.
+
+        The prior transformed array is held so that the beginning of the next
+        transformed array can be added to its end.
+
+        When the transform is a head-padded deconvolution, this implements the
+        equivalent to "overlap-add convolution".
+        '''
+        self.transform = enlarge
+        self.chunk_size = chunk_size
+
+    def __call__(self, chunk_source):
+        '''
+        Emit transformed chunks.
+        '''
+        # This holds the prior chunk to be added to the tail of subsequent
+        # chunk.
+        last = None
+        for chunk in chunk_source:
+            
+            if self.chunk_size is None:
+                self.chunk_size = chunk.size
+                print(f'taking chunk size from first input of: {chunk.size}')
+
+            enlarged = self.transform(chunk)
+
+            if last is None:
+                # Prime the prior with just the non pre-padded part.
+                last = enlarged[-self.chunk:]
+                continue
+
+            # For now, we will assume the enlargement is less than chunk size.
+            # If we allow larger enlargement (which is certainly possible), we'd
+            # need to keep enough "last" chunks as would span the enlargement.
+
+            add_size = chunk.size - self.chunk_size
+            last[-add_size:] += chunk[:add_size]
+            done = last
+            last = chunk[add_size:]
             yield done
