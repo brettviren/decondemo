@@ -200,7 +200,7 @@ class PostOverlap:
         "overlap-add" method.
         '''
         self.func = enlarge
-        self.chunk_size = None
+        self.chunk_size = chunk_size
 
     def __call__(self, chunk_source):
         '''
@@ -208,29 +208,28 @@ class PostOverlap:
         '''
         # This holds the tail for subsequent chunk
         save = np.zeros((0,), dtype=float)
-        while chunk in chunk_source:
+        for chunk in chunk_source:
             
             if self.chunk_size is None:
-                self.chunk_size = chunk.size()
+                self.chunk_size = chunk.size
 
             enlarged = self.func(chunk)
 
             # Add accrued overlap taking care that it may be smaller or larger
             # than the chunk size
-            add_size = min(save.size(), self.chunk_size)
+            add_size = min(save.size, self.chunk_size)
             enlarged[:add_size] += save[:add_size]
 
             # Makes either zero size or pops one chunk worth
             save = save[add_size:]
 
-            done = enlarge[:chunk_size]
-            tail = enlarge[chunk_size:]
+            done = enlarged[:self.chunk_size]
+            tail = enlarged[self.chunk_size:]
 
-            if save.size() > tail.size():
-                save[:tail.size()] += tail
+            if save.size > tail.size:
+                save[:tail.size] += tail
             else:
-                tail[:save.size()] += save
+                tail[:save.size] += save
                 save = tail
 
             yield done
-
