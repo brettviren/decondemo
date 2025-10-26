@@ -6,9 +6,9 @@ import numpy as np
 from scipy.signal import find_peaks
 
 from . import signals
-from . import decon
+from .convo import convo, decon
 from . import plots
-from .util import DataAttr, linear_size, zero_pad
+from .util import DataAttr, linear_size
 from .filters import Filter, Lowpass, Highpass
 from .filters import taper_function
 
@@ -42,7 +42,7 @@ def roll(output):
 
     filt_func = Lowpass(scale=0.1, power=3.0)
 
-    dsignal = decon.decon_pad(measure, kernel, zero_pad, filt_func)
+    dsignal = decon(measure, kernel, filt_func=filt_func)
 
     roll_size = kernel_size
     droll = np.roll(dsignal, roll_size)
@@ -128,7 +128,7 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
     if signal_is_measure:
         signal_measured = signal_true
     else:
-        signal_measured = np.convolve(signal_true, kernel, mode='full')
+        signal_measured = convo(signal_true, kernel)
         
     # 2b. Apply Noise if requested
     if noise_rms > 0.0:
@@ -175,7 +175,7 @@ def plot(signal_size, signal_mean, signal_sigma, kernel_size, kernel_mean, kerne
 
     # 5. Perform Deconvolution using custom padding and filter
     try:
-        decon_result = decon.decon_pad(signal_measured, kernel, pad_func, filt_func=filt_func)
+        decon_result = decon(signal_measured, kernel, pad_func, filt_func=filt_func)
     except ValueError as e:
         click.echo(f"Error during deconvolution: {e}", err=True)
         raise
