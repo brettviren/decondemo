@@ -24,6 +24,9 @@ results.  The graph is composed through calls to the callable method.
 import random
 import numpy as np
 
+from .util import zero_pad
+from .convo import convo as convo_func
+
 class ExpoTime:
     def __init__(self, rate=1.0):
         self.rate = rate
@@ -35,6 +38,19 @@ class UniformTime:
         self.rate = rate
     def __call__(self):
         return 1.0/self.rate
+
+class ArrayTimeSource:
+    def __init__(self, times):
+        self.times = iter(times)
+    
+    def __iter__(self):
+        return self
+        
+    def __next__(self):
+        try:
+            return next(self.times)
+        except StopIteration:
+            raise StopIteration
 
 class TimeSource:
     '''
@@ -147,3 +163,74 @@ class Latch:
                 
             self.latch(time)
             
+class ConvoFunc:
+    '''
+    A closure around kernel, pad, filter and convolution functions.
+    '''
+
+    def __init__(self, kernel, pad_func=zero_pad, filt_func=None):
+        '''
+        Construct a convo func that convolves a chunk with the kernel after
+        applying a pad function.  If filt_func given it is multiplied as part of
+        the convolution.
+        '''
+        self.kernel = kernel
+        self.pad_func = pad_func
+        self.filt_func = filt_func
+
+    def __call__(self, chunk):
+        return convo_func(chunk, self.kernel, self.pad_func, self.filt_func)
+
+
+class PostOverlap:
+    '''
+    A node that handles a transform that enlarges the size of a chunk.
+    '''
+    def __init__(self, enlarge, chunk_size=None):
+        '''
+        Apply the enlarge callable to chunks.
+
+        If given, chunk_size specifies the output chunk size.  Else, the size of
+        the first chunk consumed will specify the output chunk size.
+
+        Any additional samples at the end of the enlarged array are held and
+        added to the start of the next enlarged array.
+
+        When the enlargement is a tail-padded convolution, this implements the
+        "overlap-add" method.
+        '''
+        self.func = enlarge
+        self.chunk_size = None
+
+    def __call__(self, chunk_source):
+        '''
+        Emit convolved chunks.
+        '''
+        # This holds the tail for subsequent chunk
+        save = np.zeros((0,), dtype=float)
+        while chunk in chunk_source:
+            
+            if self.chunk_size is None:
+                self.chunk_size = chunk.size()
+
+            enlarged = self.func(chunk)
+
+            # Add accrued overlap taking care that it may be smaller or larger
+            # than the chunk size
+            add_size = min(save.size(), self.chunk_size)
+            enlarged[:add_size] += save[:add_size]
+
+            # Makes either zero size or pops one chunk worth
+            save = save[add_size:]
+
+            done = enlarge[:chunk_size]
+            tail = enlarge[chunk_size:]
+
+            if save.size() > tail.size():
+                save[:tail.size()] += tail
+            else:
+                tail[:save.size()] += save
+                save = tail
+
+            yield done
+
