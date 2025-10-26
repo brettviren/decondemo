@@ -53,16 +53,16 @@ def _get_kernel(size, mean, sigma):
 
 
 @cli.command()
-@click.option('--chunks', type=int, default=10, help='Number of chunks/time steps to generate (limit for TimeSource).')
-@click.option('--rate', type=float, default=1.0, help='Rate parameter for time distribution.')
+@click.option('--time-limit', type=float, default=1000.0, help='Limit the maximum time processed).')
+@click.option('--decay-time', type=float, default=10.0, help='Mean time between decay times.')
 @click.option('--time-distribution', type=click.Choice(['expo', 'uniform']), default='expo', help='Time step distribution.')
 @click.option('--sample-period', type=float, default=1.0, help='Sample period for Latch.')
 @click.option('--start-time', type=float, default=0.0, help='Start time for Latch.')
-@click.option('--chunk-size', type=int, default=10, help='Chunk size for Latch and Overlap nodes.')
+@click.option('--chunk-size', type=int, default=100, help='Chunk size for Latch and Overlap nodes.')
 # CONVO PARAMETERS
 @click.option('--convo-kernel-size', type=int, default=21, help='Size of the convolution kernel array.')
 @click.option('--convo-kernel-mean', type=float, default=10.0, help='Mean position of the convolution kernel Gaussian.')
-@click.option('--convo-kernel-sigma', type=float, default=2.0, help='Sigma (width) of the convolution kernel Gaussian.')
+@click.option('--convo-kernel-sigma', type=float, default=3.0, help='Sigma (width) of the convolution kernel Gaussian.')
 @click.option('--convo-taper-name', type=click.Choice(['none', 'hann', 'hamming', 'blackman', 'bartlett', 'triangle', 'exponential', 'gauss', 'sine', 'linear']), default='none', help='Taper function for convolution padding.')
 @click.option('--convo-taper-length', type=int, default=10, help='Length of the convolution taper.')
 @click.option('--convo-taper-signal', default=False, is_flag=True, help='If set, convolution tapering is applied as a windowing of a signal, else (default) tapering is an extrapolation.')
@@ -83,7 +83,7 @@ def _get_kernel(size, mean, sigma):
 @click.option('--decon-filter-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the deconvolution filter to zero.')
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
 def chunked(
-    chunks, rate, time_distribution, sample_period, start_time, chunk_size,
+    time_limit, decay_time, time_distribution, sample_period, start_time, chunk_size,
     convo_kernel_size, convo_kernel_mean, convo_kernel_sigma,
     convo_taper_name, convo_taper_length, convo_taper_signal,
     convo_filter_name, convo_filter_scale, convo_filter_power, convo_filter_ignore_baseline,
@@ -100,11 +100,11 @@ def chunked(
     
     # 1. Time Source Setup
     if time_distribution == 'expo':
-        step = ExpoTime(rate=rate)
+        step = ExpoTime(rate=1.0/decay_time)
     else:
-        step = UniformTime(rate=rate)
+        step = UniformTime(rate=1.0/decay_time)
         
-    time_source = TimeSource(step=step, start=start_time, limit=chunks)
+    time_source = TimeSource(step=step, start=start_time, limit=time_limit)
     
     # 2. Latch Setup
     latch = Latch(sample_period=sample_period, chunk_size=chunk_size, start_time=start_time)
@@ -158,8 +158,6 @@ def chunked(
     # 6. Collect results (Consumes the generator, filling decon_chunks)
     list(deconvolved_results)
     
-    print(f'{len(latch_chunks)} latched, {len(convo_chunks)} convos, {len(decon_chunks)} decons')
-
     # 7. Plotting/Output
     
     if not decon_chunks:
@@ -198,7 +196,7 @@ def chunked(
         sys.stdout.write(output)
         sys.stdout.flush()
     
-    click.echo(f"Successfully processed {chunks} time steps into {len(decon_chunks)} output chunks.")
+    click.echo(f"Produced {len(decon_chunks)} output chunks.")
 
 
 @cli.command()

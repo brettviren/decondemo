@@ -31,7 +31,8 @@ class ExpoTime:
     def __init__(self, rate=1.0):
         self.rate = rate
     def __call__(self):
-        return random.expovariate(self.rate)
+        t = random.expovariate(self.rate)
+        return t
 
 class UniformTime:
     def __init__(self, rate=1.0):
@@ -69,10 +70,7 @@ class TimeSource:
         self.limit = limit
 
     def __call__(self):
-        while True:
-            if not self.limit:
-                return
-            self.limit -= 1
+        while self.now < self.limit:
             dt = self.step()
             self.now += dt
             yield self.now
@@ -163,7 +161,6 @@ class Latch:
                 
             self.latch(time)
             
-        # FIX: Use yield from to yield the contents of the generator, not the generator object itself.
         yield from self.emit()
 
 class ConvoFunc:
@@ -218,7 +215,6 @@ class PostOverlap:
             
             if self.chunk_size is None:
                 self.chunk_size = chunk.size
-                print(f'taking chunk size from first input of: {chunk.size}')
 
             enlarged = self.transform(chunk)
 
@@ -273,7 +269,6 @@ class PreOverlap:
             
             if self.chunk_size is None:
                 self.chunk_size = chunk.size
-                print(f'taking chunk size from first input of: {chunk.size}')
 
             enlarged = self.transform(chunk)
             
