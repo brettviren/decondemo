@@ -275,11 +275,12 @@ def test_convofunc_initialization():
 # Mock function simulating convolution (enlargement by 3 elements)
 def mock_enlarge_standard(chunk, overlap_size=3):
     N = len(chunk)
-    enlarged = np.zeros(N + overlap_size)
+    # Ensure enlarged array is float dtype
+    enlarged = np.zeros(N + overlap_size, dtype=float)
     # Fill with input values (for easy tracking)
     enlarged[:N] = chunk
     # Fill tail with unique markers based on chunk index
-    idx = int(chunk[0]) if chunk.size > 0 else 0
+    idx = chunk[0] if chunk.size > 0 else 0.0
     enlarged[N:] = [idx + 0.1, idx + 0.2, idx + 0.3]
     return enlarged
 
@@ -288,10 +289,11 @@ def test_postoverlap_standard_flow():
     CHUNK_SIZE = 10
     
     # Input chunks (size 10)
+    # Ensure input chunks are float dtype
     chunk_data = [
-        np.ones(CHUNK_SIZE) * 1,
-        np.ones(CHUNK_SIZE) * 2,
-        np.ones(CHUNK_SIZE) * 3,
+        np.ones(CHUNK_SIZE, dtype=float) * 1,
+        np.ones(CHUNK_SIZE, dtype=float) * 2,
+        np.ones(CHUNK_SIZE, dtype=float) * 3,
     ]
     
     po = PostOverlap(enlarge=mock_enlarge_standard, chunk_size=CHUNK_SIZE)
@@ -324,14 +326,14 @@ def test_postoverlap_initial_chunk_size_detection():
     
     def mock_enlarge_small(chunk):
         N = len(chunk)
-        enlarged = np.zeros(N + OVERLAP_SIZE)
+        enlarged = np.zeros(N + OVERLAP_SIZE, dtype=float)
         enlarged[:N] = chunk
-        enlarged[N:] = [10, 20]
+        enlarged[N:] = [10.0, 20.0] # Use floats
         return enlarged
 
     chunk_data = [
-        np.ones(CHUNK_SIZE) * 1,
-        np.ones(CHUNK_SIZE) * 2,
+        np.ones(CHUNK_SIZE, dtype=float) * 1,
+        np.ones(CHUNK_SIZE, dtype=float) * 2,
     ]
     
     po = PostOverlap(enlarge=mock_enlarge_small, chunk_size=None)
@@ -358,20 +360,21 @@ def test_postoverlap_non_standard_overlap_logic():
     CHUNK_SIZE = 5
     
     def mock_enlarge_variable_tail(chunk):
-        if chunk[0] == 1:
+        # Ensure output is float
+        if chunk[0] == 1.0:
             # C1: Input size 5. Output size 10. Tail size 5.
-            return np.array([1, 1, 1, 1, 1, 10, 20, 30, 40, 50])
-        elif chunk[0] == 2:
+            return np.array([1, 1, 1, 1, 1, 10, 20, 30, 40, 50], dtype=float)
+        elif chunk[0] == 2.0:
             # C2: Input size 5. Output size 7. Tail size 2.
-            return np.array([2, 2, 2, 2, 2, 60, 70])
+            return np.array([2, 2, 2, 2, 2, 60, 70], dtype=float)
         else:
             # C3: Input size 5. Output size 8. Tail size 3.
-            return np.array([3, 3, 3, 3, 3, 80, 90, 100])
+            return np.array([3, 3, 3, 3, 3, 80, 90, 100], dtype=float)
 
     chunk_data = [
-        np.ones(CHUNK_SIZE) * 1,
-        np.ones(CHUNK_SIZE) * 2,
-        np.ones(CHUNK_SIZE) * 3,
+        np.ones(CHUNK_SIZE, dtype=float) * 1,
+        np.ones(CHUNK_SIZE, dtype=float) * 2,
+        np.ones(CHUNK_SIZE, dtype=float) * 3,
     ]
     
     po = PostOverlap(enlarge=mock_enlarge_variable_tail, chunk_size=CHUNK_SIZE)
