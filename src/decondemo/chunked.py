@@ -34,7 +34,7 @@ class UniformTime:
     def __init__(self, rate=1.0):
         self.rate = rate
     def __call__(self):
-        return 1.0/rate
+        return 1.0/self.rate
 
 class TimeSource:
     '''
@@ -57,7 +57,7 @@ class TimeSource:
             if not self.limit:
                 return
             self.limit -= 1
-            dt = random.expovariate(self.rate)
+            dt = self.step()
             self.now += dt
             yield self.now
 
@@ -65,7 +65,7 @@ class Latch:
     '''
     Produce a discrete sampled impulse train from times
     '''
-    def __init__(self, sample_period=1.0, chunk_size=100, self.start_time=0.0):
+    def __init__(self, sample_period=1.0, chunk_size=100, start_time=0.0):
         '''
         Latch input times with given sample period and emit arrays of chunk size.
         '''
@@ -110,7 +110,7 @@ class Latch:
         This may be outside the bounds of the current chunk.  It will be
         negative if "time" is before "now".
         '''
-        return int( (time - self.now ) / sample_period )
+        return int( (time - self.now ) / self.sample_period )
 
     def latch(self, time, value=1.0):
         '''
@@ -121,7 +121,7 @@ class Latch:
         ind = self.tick(time)
         if ind < 0 or ind >= self.chunk_size:
             raise IndexError(f'ind {ind} out of bounds for size {self.chunk_size}')
-        array[ind] += alue
+        self.chunk[ind] += value
 
     def emit(self):
         '''
@@ -141,8 +141,8 @@ class Latch:
 
             # Emit chunks until we catch up
             while time >= self.later:
-                time -= self.duration
-                self.emit()
+                for chunk in self.emit():
+                    yield chunk
                 
             self.latch(time)
             
