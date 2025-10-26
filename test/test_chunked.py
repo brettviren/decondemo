@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import random
-from src.decondemo.chunked import ExpoTime, UniformTime, TimeSource, Latch
+from decondemo.chunked import ExpoTime, UniformTime, TimeSource, Latch
 
 # Fix random seed for deterministic testing of time generators
 random.seed(42)
