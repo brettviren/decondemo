@@ -239,6 +239,8 @@ def plotcn(*columns: List[Union[DataAttr, ArrayLike]], output_path: Optional[str
             L = len(array)
             title = array_wrapper.attr.get('title', f'Chunk {i}')
 
+            print(f'{i=} {j=} {title} {np.sum(array)}')
+
             # Plotting the interval
             ax.step(np.arange(L), array, where='mid')
             ax.set_title(title)

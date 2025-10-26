@@ -83,6 +83,7 @@ class Latch:
         '''
         Latch input times with given sample period and emit arrays of chunk size.
         '''
+        print(f'Latch: {sample_period=} {chunk_size=} {start_time=}')
         self.sample_period = sample_period
         self.chunk_size = chunk_size
         self.now = start_time

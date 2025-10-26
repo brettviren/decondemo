@@ -45,6 +45,7 @@ def _get_pad_func(taper_name, taper_length, taper_signal):
     return taper_function(taper_name, taper_length, taper_signal)
 
 def _get_kernel(size, mean, sigma):
+    print(f'kernel {size=} {mean=} {sigma=}')
     kernel = signals.gaussian(size=size, mean=mean, sigma=sigma)
     # Normalize kernel (PSF)
     if np.sum(kernel) != 0:
@@ -142,18 +143,18 @@ def chunked(
     
     # Capture Latch output (Impulse Train Chunks)
     latch_chunks = []
-    tapped_impulse_train = tee_and_capture(impulse_train_source, latch_chunks)
+    tapped_impulse_train = tee_and_capture(impulse_train_source, latch_chunks, "latch")
     
     # Latch -> PostOverlap (Convolution)
     convolved_source = post_overlap(tapped_impulse_train)
     
     # Capture Convo output (Convolved Chunks)
     convo_chunks = []
-    tapped_convolved = tee_and_capture(convolved_source, convo_chunks)
+    tapped_convolved = tee_and_capture(convolved_source, convo_chunks, "convo")
     
     # PostOverlap -> PreOverlap (Deconvolution)
     decon_chunks = []
-    deconvolved_results = tee_and_capture(pre_overlap(tapped_convolved), decon_chunks)
+    deconvolved_results = tee_and_capture(pre_overlap(tapped_convolved), decon_chunks, "decon")
     
     # 6. Collect results (Consumes the generator, filling decon_chunks)
     list(deconvolved_results)
@@ -167,37 +168,35 @@ def chunked(
     arrays = []
     
     # A. Latch Output (Input to Convo)
-    if latch_chunks:
-        for i, chunk in enumerate(latch_chunks):
-            arrays.append(DataAttr(
-                data=chunk,
-                attr={'name': f'latch_chunk_{i}', 'title': f'1. Latch Output (Chunk {i}/{len(latch_chunks)})'}
-            ))
+    for ind, chunk in enumerate(latch_chunks):
+        latch_chunks[ind] = DataAttr(
+            data=chunk,
+            attr={'name': f'latch_chunk_{ind}',
+                  'title': f'1. Latch Output (Chunk {ind}/{len(latch_chunks)})'}
+        )
 
     # B. Convo Output (Input to Decon)
-    if convo_chunks:
-        for i, chunk in enumerate(convo_chunks):
-            arrays.append(DataAttr(
-                data=chunk,
-                attr={'name': f'convo_chunk_{i}', 'title': f'2. Convo Output (Chunk {i}/{len(convo_chunks)})'}
-            ))
-
+    for ind, chunk in enumerate(convo_chunks):
+        convo_chunks[ind] = DataAttr(
+            data=chunk,
+            attr={'name': f'convo_chunk_{ind}',
+                  'title': f'2. Convo Output (Chunk {ind}/{len(convo_chunks)})'}
+            )
+        
     # C. Decon Output (Final Result)
-    if decon_chunks:
-        for i, chunk in enumerate(decon_chunks):
-            arrays.append(DataAttr(
-                data=chunk,
-                attr={'name': f'decon_chunk_{i}', 'title': f'3. Decon Output (Chunk {i}/{len(decon_chunks)})'}
-            ))
+    for ind, chunk in enumerate(decon_chunks):
+        decon_chunks[ind] = DataAttr(
+            data=chunk,
+            attr={'name': f'decon_chunk_{ind}',
+                  'title': f'3. Decon Output (Chunk {ind}/{len(decon_chunks)})'}
+        )
     
-    plots.plotn(arrays, output_path=output, waveform_logy=False)
+    plots.plotcn(latch_chunks, convo_chunks, decon_chunks, output_path=output)
     
     if output:
         sys.stdout.write(output)
         sys.stdout.flush()
     
-    click.echo(f"Produced {len(decon_chunks)} output chunks.")
-
 
 @cli.command()
 @click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')

@@ -48,13 +48,14 @@ def fftshift(x):
     """
     return x
 
-def tee_and_capture(source_generator: Iterable[T], capture_list: List[T]) -> Iterable[T]:
+def tee_and_capture(source_generator: Iterable[T], capture_list: List[T], name="") -> Iterable[T]:
     """
     Wraps a generator, yielding its items while simultaneously appending them
     to a provided list.
     """
     for item in source_generator:
-        capture_list.append(item)
+        print(f'tee {name} {item.shape} tot:{np.sum(item)}')
+        capture_list.append(item.copy())
         yield item
 
 
