@@ -1,5 +1,7 @@
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Iterable, List, TypeVar
+
+T = TypeVar('T')
 
 def linear_size(a, b):
     if isinstance(a, np.ndarray):
@@ -46,6 +48,15 @@ def fftshift(x):
     """
     return x
 
+def tee_and_capture(source_generator: Iterable[T], capture_list: List[T]) -> Iterable[T]:
+    """
+    Wraps a generator, yielding its items while simultaneously appending them
+    to a provided list.
+    """
+    for item in source_generator:
+        capture_list.append(item)
+        yield item
+
 
 class DataAttr:
     """
@@ -60,4 +71,3 @@ class DataAttr:
         Attempts to retrieve metadata attribute using dictionary key access.
         """
         return self.attr[key]
-

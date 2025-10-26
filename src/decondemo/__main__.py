@@ -8,7 +8,7 @@ from scipy.signal import find_peaks
 from . import signals
 from .convo import convo, decon
 from . import plots
-from .util import DataAttr, linear_size
+from .util import DataAttr, linear_size, tee_and_capture
 from .filters import Filter, Lowpass, Highpass
 from .filters import taper_function
 from .chunked import (
@@ -133,34 +133,62 @@ def chunked(
     )
     pre_overlap = PreOverlap(transform=decon_func_obj, chunk_size=chunk_size)
     
-    # 5. Pipeline Execution
+    # 5. Pipeline Execution and Capture
     
     # TimeSource -> Latch (Impulse train)
     impulse_train_source = latch(time_source())
     
+    # Capture Latch output (Impulse Train Chunks)
+    latch_chunks = []
+    tapped_impulse_train = tee_and_capture(impulse_train_source, latch_chunks)
+    
     # Latch -> PostOverlap (Convolution)
-    convolved_source = post_overlap(impulse_train_source)
+    convolved_source = post_overlap(tapped_impulse_train)
+    
+    # Capture Convo output (Convolved Chunks)
+    convo_chunks = []
+    tapped_convolved = tee_and_capture(convolved_source, convo_chunks)
     
     # PostOverlap -> PreOverlap (Deconvolution)
-    deconvolved_results = pre_overlap(convolved_source)
+    decon_chunks = []
+    deconvolved_results = tee_and_capture(pre_overlap(tapped_convolved), decon_chunks)
     
-    # 6. Collect results
-    results = list(deconvolved_results)
+    # 6. Collect results (Consumes the generator, filling decon_chunks)
+    list(deconvolved_results)
     
-    # 7. Plotting/Output (Minimal implementation)
+    # 7. Plotting/Output
     
-    if not results:
+    if not decon_chunks:
         click.echo("Pipeline produced no output chunks.", err=True)
         return
 
-    final_output = np.concatenate(results)
+    # Concatenate all captured stages for plotting
     
-    arrays = [
-        DataAttr(
-            data=final_output,
-            attr={'name': 'decon_output', 'title': f'Deconvolved Output ({len(results)} chunks)'}
-        )
-    ]
+    arrays = []
+    
+    # A. Latch Output (Input to Convo)
+    if latch_chunks:
+        latch_output = np.concatenate(latch_chunks)
+        arrays.append(DataAttr(
+            data=latch_output,
+            attr={'name': 'latch_output', 'title': f'1. Latch Output (Impulse Train, {len(latch_chunks)} chunks)'}
+        ))
+
+    # B. Convo Output (Input to Decon)
+    if convo_chunks:
+        convo_output = np.concatenate(convo_chunks)
+        arrays.append(DataAttr(
+            data=convo_output,
+            attr={'name': 'convo_output', 'title': f'2. Convo Output (Measured Signal, {len(convo_chunks)} chunks)'}
+        ))
+
+    # C. Decon Output (Final Result)
+    if decon_chunks:
+        decon_output = np.concatenate(decon_chunks)
+        arrays.append(DataAttr(
+            data=decon_output,
+            attr={'name': 'decon_output', 'title': f'3. Decon Output (Final Result, {len(decon_chunks)} chunks)'}
+        ))
     
     plots.plotn(arrays, output_path=output, waveform_logy=False)
     
@@ -168,7 +196,7 @@ def chunked(
         sys.stdout.write(output)
         sys.stdout.flush()
     
-    click.echo(f"Successfully processed {chunks} time steps into {len(results)} output chunks.")
+    click.echo(f"Successfully processed {chunks} time steps into {len(decon_chunks)} output chunks.")
 
 
 @cli.command()
