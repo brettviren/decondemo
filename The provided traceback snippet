@@ -1,3 +1,0 @@
-In `src/decondemo/chunked.py:3:5: E999 IndentationError: unexpected indent
-    def __call__(self, time_source):
-    ^

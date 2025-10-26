@@ -9,6 +9,7 @@ dependencies = [
     "click",
     "pyqt6>=6.7.1",
     "scipy>=1.10.1",
+    "pytest>=8.3.5",
 ]
 authors = [
     { name = "Brett Viren", email = "brett.viren@gmail.com" }

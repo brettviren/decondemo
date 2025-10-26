@@ -58,7 +58,7 @@ def _get_kernel(size, mean, sigma):
 @click.option('--time-distribution', type=click.Choice(['expo', 'uniform']), default='expo', help='Time step distribution.')
 @click.option('--sample-period', type=float, default=1.0, help='Sample period for Latch.')
 @click.option('--start-time', type=float, default=0.0, help='Start time for Latch.')
-@click.option('--chunk-size', type=int, default=10, help='Chunk size for Latch and Overlap nodes.')
+@click.option('--chunk-size', type=int, default=100, help='Chunk size for Latch and Overlap nodes.')
 # CONVO PARAMETERS
 @click.option('--convo-kernel-size', type=int, default=21, help='Size of the convolution kernel array.')
 @click.option('--convo-kernel-mean', type=float, default=10.0, help='Mean position of the convolution kernel Gaussian.')
