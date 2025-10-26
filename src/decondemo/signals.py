@@ -1,6 +1,6 @@
 import numpy as np
 
-def gaussian(size: int, mean: float, sigma: float) -> np.ndarray:
+def gaussian(size: int, mean: float, sigma: float, norm: float = 1.0) -> np.ndarray:
     """
     Generates a sampled Gaussian function.
 
@@ -17,7 +17,7 @@ def gaussian(size: int, mean: float, sigma: float) -> np.ndarray:
 
     x = np.arange(size)
     # Calculate the Gaussian shape: exp(-(x - mean)^2 / (2 * sigma^2))
-    return np.exp(-0.5 * ((x - mean) / sigma)**2)
+    return norm * np.exp(-0.5 * ((x - mean) / sigma)**2)
 
 def white_noise(size: int, rms: float = 1.0) -> np.ndarray:
     """

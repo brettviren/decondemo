@@ -3,6 +3,8 @@ import sys
 import click
 import numpy as np
 
+from scipy.signal import find_peaks
+
 from . import signals
 from . import decon
 from . import plots
@@ -17,6 +19,68 @@ def cli():
     Deconvolution Demo Package CLI
     """
     pass
+
+@cli.command()
+@click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
+def roll(output):
+    measure_size = 200
+    measure_sigma = 2.0
+    measure_mean = 10.0
+    measure_peak1 = 10.0
+    measure_peak2 = measure_size - measure_peak1
+
+    kernel_size = 110
+    kernel_sigma = 2.0
+    kernel_mean = 100.0
+
+    measure =  signals.gaussian(size=measure_size, mean=measure_mean, sigma=measure_sigma)
+    measure += signals.gaussian(size=measure_size, mean=measure_size-measure_mean, sigma=measure_sigma, norm=2.0) 
+
+    kernel = signals.gaussian(size=kernel_size, mean=kernel_mean, sigma=kernel_sigma)
+    if np.sum(kernel) != 0:
+        kernel /= np.sum(kernel)
+
+    filt_func = Lowpass(scale=0.1, power=3.0)
+
+    dsignal = decon.decon_pad(measure, kernel, zero_pad, filt_func)
+
+    roll_size = kernel_size
+    droll = np.roll(dsignal, roll_size)
+
+    arrays = []
+
+    # arrays.append(DataAttr(
+    #     data=signal,
+    #     attr={'name': 'signal', 'title': 'Signal'}
+    # ))
+
+    arrays.append(DataAttr(
+        data=measure, 
+        attr={'name': 'measure', 'title': f'Measure [{measure.shape[0]}], peaks @ {measure_peak1}, {measure_peak2}'}
+    ))
+
+    arrays.append(DataAttr(
+        data=kernel,
+        attr={'name': 'kernel', 'title': f'Kernel [{kernel.shape[0]}]'}
+    ))
+
+    roll_peaks, _ = find_peaks(dsignal, height=1.0, distance=2.0)
+    arrays.append(DataAttr(
+        data=dsignal, 
+        attr={'name': 'decon', 'title': f'Decon [{dsignal.shape[0]}], points @ {roll_peaks}'}
+    ))
+
+    roll_peaks, _ = find_peaks(droll, height=1.0, distance=2.0)
+    arrays.append(DataAttr(
+        data=droll, 
+        attr={'name': 'droll', 'title': f'Decon Rolled [{droll.shape[0]}] by [{roll_size}], peaks @ {roll_peaks}'}
+    ))
+
+    plots.plotn(arrays, output_path=output, waveform_logy=False)
+    if output:
+        sys.stdout.write(output)
+        sys.stdout.flush()
+    
 
 @cli.command()
 @click.option('--signal-size', type=int, default=100, help='Size of the true signal array.')

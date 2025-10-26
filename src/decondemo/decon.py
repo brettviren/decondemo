@@ -42,9 +42,14 @@ def decon(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     return result.real
 
 
+
 def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray], filt_func: Callable[[int], np.ndarray] = Filter()) -> np.ndarray:
+    return convo_pad(signal, kernel, pad_func, filt_func=filt_func, invert=True);
+
+def convo_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.ndarray, int], np.ndarray],
+              filt_func: Callable[[int], np.ndarray] = Filter(), invert=False) -> np.ndarray:
     """
-    Performs deconvolution using the DFT method with custom padding.
+    Performs convolution using the DFT method with custom padding.
 
     The process involves:
     1. Determining the required size N for padding (N = len(signal) + len(kernel) - 1).
@@ -77,10 +82,13 @@ def decon_pad(signal: np.ndarray, kernel: np.ndarray, pad_func: Callable[[np.nda
     filter_fft = filt_func(N)
 
     # 4. Divide in Fourier space with multiplicative filter
-    decon_fft = signal_fft * filter_fft / kernel_fft
+    if invert:
+        result_fft = signal_fft * filter_fft / kernel_fft
+    else:
+        result_fft = signal_fft * filter_fft * kernel_fft
 
     # 5. Apply IFFT
-    result = np.fft.ifft(decon_fft)
+    result = np.fft.ifft(result_fft)
 
     # 6. Return the real part
     return result.real
