@@ -58,7 +58,7 @@ def _get_kernel(size, mean, sigma):
 @click.option('--time-distribution', type=click.Choice(['expo', 'uniform']), default='expo', help='Time step distribution.')
 @click.option('--sample-period', type=float, default=1.0, help='Sample period for Latch.')
 @click.option('--start-time', type=float, default=0.0, help='Start time for Latch.')
-@click.option('--chunk-size', type=int, default=100, help='Chunk size for Latch and Overlap nodes.')
+@click.option('--chunk-size', type=int, default=10, help='Chunk size for Latch and Overlap nodes.')
 # CONVO PARAMETERS
 @click.option('--convo-kernel-size', type=int, default=21, help='Size of the convolution kernel array.')
 @click.option('--convo-kernel-mean', type=float, default=10.0, help='Mean position of the convolution kernel Gaussian.')
@@ -166,33 +166,31 @@ def chunked(
         click.echo("Pipeline produced no output chunks.", err=True)
         return
 
-    # Concatenate all captured stages for plotting
-    
     arrays = []
     
     # A. Latch Output (Input to Convo)
     if latch_chunks:
-        latch_output = np.concatenate(latch_chunks)
-        arrays.append(DataAttr(
-            data=latch_output,
-            attr={'name': 'latch_output', 'title': f'1. Latch Output (Impulse Train, {len(latch_chunks)} chunks)'}
-        ))
+        for i, chunk in enumerate(latch_chunks):
+            arrays.append(DataAttr(
+                data=chunk,
+                attr={'name': f'latch_chunk_{i}', 'title': f'1. Latch Output (Chunk {i}/{len(latch_chunks)})'}
+            ))
 
     # B. Convo Output (Input to Decon)
     if convo_chunks:
-        convo_output = np.concatenate(convo_chunks)
-        arrays.append(DataAttr(
-            data=convo_output,
-            attr={'name': 'convo_output', 'title': f'2. Convo Output (Measured Signal, {len(convo_chunks)} chunks)'}
-        ))
+        for i, chunk in enumerate(convo_chunks):
+            arrays.append(DataAttr(
+                data=chunk,
+                attr={'name': f'convo_chunk_{i}', 'title': f'2. Convo Output (Chunk {i}/{len(convo_chunks)})'}
+            ))
 
     # C. Decon Output (Final Result)
     if decon_chunks:
-        decon_output = np.concatenate(decon_chunks)
-        arrays.append(DataAttr(
-            data=decon_output,
-            attr={'name': 'decon_output', 'title': f'3. Decon Output (Final Result, {len(decon_chunks)} chunks)'}
-        ))
+        for i, chunk in enumerate(decon_chunks):
+            arrays.append(DataAttr(
+                data=chunk,
+                attr={'name': f'decon_chunk_{i}', 'title': f'3. Decon Output (Chunk {i}/{len(decon_chunks)})'}
+            ))
     
     plots.plotn(arrays, output_path=output, waveform_logy=False)
     
