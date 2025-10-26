@@ -1,0 +1,9 @@
+        for time in time_source:
+            # ... checks for time violation ...
+
+            # Emit chunks until we catch up
+            while time >= self.later:
+                for chunk in self.emit():
+                    yield chunk
+                
+            self.latch(time)
