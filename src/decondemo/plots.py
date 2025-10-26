@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import Sequence, Optional, List, Any
+from typing import Sequence, Optional, List, Any, Union
 from numpy.typing import ArrayLike
 
 from .util import DataAttr
@@ -188,6 +188,71 @@ def plotn(arrays: List[DataAttr], output_path: Optional[str] = None, waveform_lo
             
     plt.tight_layout()
     
+    if output_path:
+        plt.savefig(output_path)
+        plt.close(fig)
+    else:
+        plt.show()
+
+
+def plotcn(*columns: List[Union[DataAttr, ArrayLike]], output_path: Optional[str] = None):
+    """
+    Plots multiple columns of waveform arrays (DataAttr objects or raw arrays).
+    Only the interval plot is included.
+
+    Args:
+        *columns: Each argument is a list of DataAttr/ArrayLike objects representing a column.
+        output_path: If provided, saves the plot to this path instead of showing it interactively.
+    """
+    N_cols = len(columns)
+    if N_cols == 0:
+        return
+
+    # Determine the maximum number of rows needed
+    N_rows = max(len(col) for col in columns) if columns else 0
+    if N_rows == 0:
+        return
+
+    # Create figure with N_rows rows and N_cols columns
+    fig, axes = plt.subplots(N_rows, N_cols, sharex=False, figsize=(5 * N_cols, 3 * N_rows))
+
+    # Ensure axes is 2D even if N_rows=1 or N_cols=1
+    if N_rows == 1 and N_cols == 1:
+        axes = np.array([[axes]])
+    elif N_rows == 1:
+        axes = np.array([axes])
+    elif N_cols == 1:
+        axes = np.array([[ax] for ax in axes])
+
+    for j, column in enumerate(columns):
+        for i, item in enumerate(column):
+            ax = axes[i, j]
+            
+            # Ensure item is a DataAttr object
+            if isinstance(item, DataAttr):
+                array_wrapper = item
+            else:
+                # Wrap raw array in DataAttr with default title
+                array_wrapper = DataAttr(data=np.asarray(item), attr={'title': f'Column {j+1} Row {i+1}'})
+
+            array = array_wrapper.data
+            L = len(array)
+            title = array_wrapper.attr.get('title', f'Chunk {i}')
+
+            # Plotting the interval
+            ax.step(np.arange(L), array, where='mid')
+            ax.set_title(title)
+            ax.grid(True)
+            
+            if i == N_rows - 1:
+                ax.set_xlabel('Sample Index')
+            
+        # Hide unused axes if the column is shorter than N_rows
+        for k in range(len(column), N_rows):
+            axes[k, j].axis('off')
+
+    plt.tight_layout()
+
     if output_path:
         plt.savefig(output_path)
         plt.close(fig)
