@@ -218,7 +218,8 @@ class PostOverlap:
 
             # Add accrued overlap taking care that it may be smaller or larger
             # than the chunk size
-            add_size = np.min(save.size, self.chunk_size)
+            # FIX: Use built-in min() instead of np.min() which expects an array and an axis.
+            add_size = min(save.size, self.chunk_size)
             enlarged[:add_size] += save[:add_size]
 
             # Makes either zero size or pops one chunk worth
