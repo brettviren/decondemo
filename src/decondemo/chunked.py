@@ -163,12 +163,14 @@ class Latch:
                 
             self.latch(time)
             
+        yield self.emit()
+
 class ConvoFunc:
     '''
     A closure around kernel, pad, filter and convolution functions.
     '''
 
-    def __init__(self, kernel, pad_func=zero_pad, filt_func=None):
+    def __init__(self, kernel, pad_func=zero_pad, filt_func=None, invert=False):
         '''
         Construct a convo func that convolves a chunk with the kernel after
         applying a pad function.  If filt_func given it is multiplied as part of
@@ -177,9 +179,10 @@ class ConvoFunc:
         self.kernel = kernel
         self.pad_func = pad_func
         self.filt_func = filt_func
+        self.invert = invert
 
     def __call__(self, chunk):
-        return convo_func(chunk, self.kernel, self.pad_func, self.filt_func)
+        return convo_func(chunk, self.kernel, self.pad_func, self.filt_func, self.invert)
 
 
 class PostOverlap:
