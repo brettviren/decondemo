@@ -110,7 +110,8 @@ class Latch:
         This may be outside the bounds of the current chunk.  It will be
         negative if "time" is before "now".
         '''
-        return int( (time - self.now ) / self.sample_period )
+        # Use np.floor to ensure correct behavior for negative indices (times before self.now)
+        return int( np.floor( (time - self.now ) / self.sample_period ) )
 
     def latch(self, time, value=1.0):
         '''
