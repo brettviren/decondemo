@@ -1,0 +1,7 @@
+    def emit(self):
+        '''
+        Yield current chunk and advance one duration.
+        '''
+        done = self.fresh()
+        self.now += self.duration
+        yield done

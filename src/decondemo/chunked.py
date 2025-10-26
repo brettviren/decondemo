@@ -163,7 +163,8 @@ class Latch:
                 
             self.latch(time)
             
-        yield self.emit()
+        # FIX: Use yield from to yield the contents of the generator, not the generator object itself.
+        yield from self.emit()
 
 class ConvoFunc:
     '''
