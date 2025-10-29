@@ -237,14 +237,22 @@ def plotcn(*columns: List[Union[DataAttr, ArrayLike]], output_path: Optional[str
 
             array = array_wrapper.data
             L = len(array)
-            title = array_wrapper.attr.get('title', f'Chunk {i}')
+            attrs = array_wrapper.attr
+
+            title = attrs.get('title', f'Chunk {i}')
 
             print(f'{i=} {j=} {title} {np.sum(array)}')
 
-            # Plotting the interval
-            ax.step(np.arange(L), array, where='mid')
+            popts = dict(drawstyle='steps-mid')
+            popts.update(attrs.get("plot_opts", {}))
+            ax.plot(np.arange(L), array, **popts)
             ax.set_title(title)
-            ax.grid(True)
+            aopts = dict(grid=True)
+            aopts.update(attrs.get("axis_opts", {}))
+            if aopts.get("grid", True):
+                ax.grid(True)
+            if aopts.get("logy", False):
+                ax.set_yscale('log')
             
             if i == N_rows - 1:
                 ax.set_xlabel('Sample Index')

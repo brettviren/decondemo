@@ -261,6 +261,52 @@ def roll(output):
     
 
 @cli.command()
+@click.option('--filter1-name', type=click.Choice(['none', 'lowpass', 'highpass']), default='lowpass', help='Type of frequency-space filter to apply during deconvolution.')
+@click.option('--filter1-scale', type=float, default=1.0, help='Scale parameter for the filter (e.g., cutoff frequency).')
+@click.option('--filter1-power', type=float, default=2.0, help='Power parameter for the filter steepness.')
+@click.option('--filter1-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the filter to zero.')
+
+@click.option('--filter2-name', type=click.Choice(['none', 'lowpass', 'highpass']), default='lowpass', help='Type of frequency-space filter to apply during deconvolution.')
+@click.option('--filter2-scale', type=float, default=1.0, help='Scale parameter for the filter (e.g., cutoff frequency).')
+@click.option('--filter2-power', type=float, default=2.0, help='Power parameter for the filter steepness.')
+@click.option('--filter2-ignore-baseline', default=False, is_flag=True, help='If set, forces the zero-frequency component of the filter to zero.')
+
+@click.option('--signal-size', type=int, default=100, help='Size of the true signal array.')
+@click.option('--output', type=click.Path(), default=None, help='Path to save the plot image (e.g., output.png). If not provided, the plot is shown interactively.')
+def refilter(filter1_name, filter1_scale, filter1_power, filter1_ignore_baseline,
+             filter2_name, filter2_scale, filter2_power, filter2_ignore_baseline,
+             signal_size, output
+             ):
+    """
+    Illustrate refiltering
+    """
+    print(filter1_name, filter1_scale, filter1_power, filter1_ignore_baseline,)
+
+    filter1 = _get_filter_func(filter1_name, filter1_scale, filter1_power, filter1_ignore_baseline)(signal_size)
+    filter2 = _get_filter_func(filter2_name, filter2_scale, filter2_power, filter2_ignore_baseline)(signal_size)
+    filter2o1 = filter2/filter1
+    filter2o1m2 = filter2o1 - filter2
+
+    arrays = [
+        DataAttr(data=filter1, attr=dict(name='filter1', title='Filter1')),
+        DataAttr(data=filter2, attr=dict(name='filter2', title='Filter2')),
+        DataAttr(data=filter2o1, attr=dict(name='filter2o1', title='Filter2 / Filter1')),
+        DataAttr(data=filter2o1m2, attr=dict(name='filter2o1m2', title='(Filter2 / Filter1) - Filter2')),
+    ]
+    for arr in arrays:
+        arr.attr['axis_opts'] = dict(logy=False)
+        
+
+    
+    plots.plotcn(arrays, output_path=output)
+    if output:
+        sys.stdout.write(output)
+        sys.stdout.flush()
+    
+    
+
+
+@cli.command()
 @click.option('--signal-size', type=int, default=100, help='Size of the true signal array.')
 @click.option('--signal-mean', type=float, default=30.0, help='Mean position of the true signal Gaussian.')
 @click.option('--signal-sigma', type=float, default=5.0, help='Sigma (width) of the true signal Gaussian.')
